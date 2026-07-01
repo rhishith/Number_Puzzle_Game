@@ -1,0 +1,319 @@
+using UnityEngine;
+using UnityEngine.UI;
+using UnityEngine.EventSystems;
+using TMPro;
+
+namespace SlideAndMatch
+{
+    /// <summary>
+    /// Manages all Canvas UI: score display, New Game / Undo buttons,
+    /// Game Over and Win overlay panels.
+    /// If no Inspector references are wired, creates the entire UI from code.
+    /// </summary>
+    public class UIManager : MonoBehaviour
+    {
+        // ── Inspector references (optional — auto-creates if null) ──
+        [Header("Score Display")]
+        [SerializeField] private TextMeshProUGUI scoreText;
+        [SerializeField] private TextMeshProUGUI bestScoreText;
+
+        [Header("Panels")]
+        [SerializeField] private GameObject gameOverPanel;
+        [SerializeField] private GameObject winPanel;
+
+        [Header("Buttons")]
+        [SerializeField] private Button newGameButton;
+        [SerializeField] private Button undoButton;
+        [SerializeField] private Button retryButton;
+        [SerializeField] private Button keepPlayingButton;
+        [SerializeField] private Button winNewGameButton;
+
+        // ───────────────────────────────────────────────────────
+        // Lifecycle
+        // ───────────────────────────────────────────────────────
+        void Start()
+        {
+            // Auto-create UI if nothing is wired
+            if (scoreText == null) CreateUI();
+
+            // Ensure an EventSystem exists (required for buttons)
+            EnsureEventSystem();
+
+            // Subscribe to game events
+            var gm = GameManager.Instance;
+            if (gm == null)
+            {
+                Debug.LogError("[UIManager] GameManager.Instance is null.");
+                return;
+            }
+
+            gm.OnScoreChanged       += UpdateScore;
+            gm.OnGameOver           += ShowGameOver;
+            gm.OnGameWon            += ShowWin;
+            gm.OnGameStarted        += HideOverlays;
+            gm.OnBoardRefreshNeeded += HideOverlays;
+
+            // Wire buttons
+            if (newGameButton  != null) newGameButton.onClick.AddListener(()  => gm.StartNewGame());
+            if (undoButton     != null) undoButton.onClick.AddListener(()     => gm.Undo());
+            if (retryButton    != null) retryButton.onClick.AddListener(()    => gm.StartNewGame());
+            if (keepPlayingButton != null)
+                keepPlayingButton.onClick.AddListener(() => { gm.ContinuePlaying(); winPanel?.SetActive(false); });
+            if (winNewGameButton != null)
+                winNewGameButton.onClick.AddListener(() => gm.StartNewGame());
+
+            HideOverlays();
+            UpdateScore(gm.Score, gm.BestScore);
+        }
+
+        void OnDestroy()
+        {
+            var gm = GameManager.Instance;
+            if (gm == null) return;
+
+            gm.OnScoreChanged       -= UpdateScore;
+            gm.OnGameOver           -= ShowGameOver;
+            gm.OnGameWon            -= ShowWin;
+            gm.OnGameStarted        -= HideOverlays;
+            gm.OnBoardRefreshNeeded -= HideOverlays;
+        }
+
+        // ───────────────────────────────────────────────────────
+        // Event callbacks
+        // ───────────────────────────────────────────────────────
+
+        private void UpdateScore(int score, int best)
+        {
+            if (scoreText     != null) scoreText.text     = score.ToString();
+            if (bestScoreText != null) bestScoreText.text = best.ToString();
+        }
+
+        private void ShowGameOver()
+        {
+            gameOverPanel?.SetActive(true);
+            AudioManager.Instance?.PlayGameOver();
+        }
+
+        private void ShowWin()
+        {
+            winPanel?.SetActive(true);
+        }
+
+        private void HideOverlays()
+        {
+            gameOverPanel?.SetActive(false);
+            winPanel?.SetActive(false);
+        }
+
+        // ───────────────────────────────────────────────────────
+        // EventSystem
+        // ───────────────────────────────────────────────────────
+
+        private void EnsureEventSystem()
+        {
+            if (FindAnyObjectByType<EventSystem>() == null)
+            {
+                GameObject es = new GameObject("EventSystem");
+                es.AddComponent<EventSystem>();
+                es.AddComponent<StandaloneInputModule>();
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // AUTO-CREATE UI (fallback when no Inspector refs)
+        // ═══════════════════════════════════════════════════════
+
+        #region Auto UI Creation
+
+        private void CreateUI()
+        {
+            // ── Canvas ─────────────────────────────────────────
+            GameObject canvasObj = new GameObject("GameCanvas");
+            canvasObj.transform.SetParent(transform, false);
+
+            Canvas canvas = canvasObj.AddComponent<Canvas>();
+            canvas.renderMode  = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = 10;
+
+            CanvasScaler scaler = canvasObj.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode        = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1080, 1920);
+            scaler.matchWidthOrHeight  = 0.5f;
+
+            canvasObj.AddComponent<GraphicRaycaster>();
+
+            // ── Title ──────────────────────────────────────────
+            CreateLabel(canvasObj.transform, "TitleText", "2048", 80,
+                new Vector2(0.5f, 1f), new Vector2(0, -100), new Vector2(500, 120),
+                HexColor("#c4b5fd"), FontStyles.Bold);
+
+            // ── Score boxes ────────────────────────────────────
+            // Score
+            GameObject scoreBox = CreateBox(canvasObj.transform, "ScoreBox",
+                new Vector2(0.5f, 1f), new Vector2(-150, -240), new Vector2(250, 110),
+                HexColor("#1e1e24"));
+
+            CreateLabel(scoreBox.transform, "ScoreLabel", "SCORE", 26,
+                new Vector2(0.5f, 1f), new Vector2(0, -10), new Vector2(220, 36),
+                HexColor("#94a3b8"), FontStyles.Normal);
+
+            scoreText = CreateLabel(scoreBox.transform, "ScoreValue", "0", 48,
+                new Vector2(0.5f, 1f), new Vector2(0, -58), new Vector2(220, 60),
+                Color.white, FontStyles.Bold);
+
+            // Best
+            GameObject bestBox = CreateBox(canvasObj.transform, "BestBox",
+                new Vector2(0.5f, 1f), new Vector2(150, -240), new Vector2(250, 110),
+                HexColor("#1e1e24"));
+
+            CreateLabel(bestBox.transform, "BestLabel", "BEST", 26,
+                new Vector2(0.5f, 1f), new Vector2(0, -10), new Vector2(220, 36),
+                HexColor("#94a3b8"), FontStyles.Normal);
+
+            bestScoreText = CreateLabel(bestBox.transform, "BestValue", "0", 48,
+                new Vector2(0.5f, 1f), new Vector2(0, -58), new Vector2(220, 60),
+                Color.white, FontStyles.Bold);
+
+            // ── Buttons ────────────────────────────────────────
+            newGameButton = CreateBtn(canvasObj.transform, "NewGameBtn", "NEW GAME",
+                new Vector2(0.5f, 0f), new Vector2(-140, 120), new Vector2(240, 72),
+                HexColor("#8b5cf6"));
+
+            undoButton = CreateBtn(canvasObj.transform, "UndoBtn", "UNDO",
+                new Vector2(0.5f, 0f), new Vector2(140, 120), new Vector2(240, 72),
+                HexColor("#334155"));
+
+            // ── Game Over Panel ────────────────────────────────
+            gameOverPanel = CreateOverlay(canvasObj.transform, "GameOverPanel",
+                "GAME OVER", HexColor("#ef4444"));
+
+            retryButton = CreateBtn(gameOverPanel.transform, "RetryBtn", "TRY AGAIN",
+                new Vector2(0.5f, 0.42f), Vector2.zero, new Vector2(320, 72),
+                HexColor("#ef4444"));
+
+            // ── Win Panel ──────────────────────────────────────
+            winPanel = CreateOverlay(canvasObj.transform, "WinPanel",
+                "YOU WIN!", HexColor("#8b5cf6"));
+
+            keepPlayingButton = CreateBtn(winPanel.transform, "KeepPlayingBtn", "KEEP PLAYING",
+                new Vector2(0.5f, 0.42f), new Vector2(0, 20), new Vector2(340, 72),
+                HexColor("#8b5cf6"));
+
+            winNewGameButton = CreateBtn(winPanel.transform, "WinNewGameBtn", "NEW GAME",
+                new Vector2(0.5f, 0.42f), new Vector2(0, -70), new Vector2(340, 72),
+                HexColor("#334155"));
+        }
+
+        // ── Helpers ────────────────────────────────────────────
+
+        private TextMeshProUGUI CreateLabel(Transform parent, string name,
+            string text, float fontSize,
+            Vector2 anchor, Vector2 anchoredPos, Vector2 size,
+            Color color, FontStyles style = FontStyles.Normal)
+        {
+            GameObject obj = new GameObject(name);
+            obj.transform.SetParent(parent, false);
+
+            RectTransform rt = obj.AddComponent<RectTransform>();
+            rt.anchorMin = rt.anchorMax = anchor;
+            rt.anchoredPosition = anchoredPos;
+            rt.sizeDelta = size;
+
+            var tmp = obj.AddComponent<TextMeshProUGUI>();
+            tmp.text      = text;
+            tmp.fontSize  = fontSize;
+            tmp.color     = color;
+            tmp.alignment = TextAlignmentOptions.Center;
+            tmp.fontStyle = style;
+
+            return tmp;
+        }
+
+        private GameObject CreateBox(Transform parent, string name,
+            Vector2 anchor, Vector2 anchoredPos, Vector2 size, Color color)
+        {
+            GameObject obj = new GameObject(name);
+            obj.transform.SetParent(parent, false);
+
+            RectTransform rt = obj.AddComponent<RectTransform>();
+            rt.anchorMin = rt.anchorMax = anchor;
+            rt.anchoredPosition = anchoredPos;
+            rt.sizeDelta = size;
+
+            Image img = obj.AddComponent<Image>();
+            img.color = color;
+
+            return obj;
+        }
+
+        private Button CreateBtn(Transform parent, string name, string label,
+            Vector2 anchor, Vector2 anchoredPos, Vector2 size, Color bgColor)
+        {
+            GameObject obj = new GameObject(name);
+            obj.transform.SetParent(parent, false);
+
+            RectTransform rt = obj.AddComponent<RectTransform>();
+            rt.anchorMin = rt.anchorMax = anchor;
+            rt.anchoredPosition = anchoredPos;
+            rt.sizeDelta = size;
+
+            Image img = obj.AddComponent<Image>();
+            img.color = bgColor;
+
+            Button btn = obj.AddComponent<Button>();
+            ColorBlock cb = btn.colors;
+            cb.normalColor      = Color.white;
+            cb.highlightedColor = new Color(1.15f, 1.15f, 1.15f, 1f);
+            cb.pressedColor     = new Color(0.85f, 0.85f, 0.85f, 1f);
+            cb.selectedColor    = Color.white;
+            btn.colors = cb;
+
+            // Stretched label
+            CreateLabel(obj.transform, "Label", label, 28,
+                Vector2.zero, Vector2.zero, Vector2.zero,          // ignored when stretched
+                Color.white, FontStyles.Bold)
+                .rectTransform.anchorMax = Vector2.one;            // stretch
+
+            // Fix: set anchors properly so text fills button
+            var labelRt = obj.transform.Find("Label").GetComponent<RectTransform>();
+            labelRt.anchorMin      = Vector2.zero;
+            labelRt.anchorMax      = Vector2.one;
+            labelRt.offsetMin      = Vector2.zero;
+            labelRt.offsetMax      = Vector2.zero;
+            labelRt.anchoredPosition = Vector2.zero;
+
+            return btn;
+        }
+
+        private GameObject CreateOverlay(Transform parent, string name,
+            string title, Color titleColor)
+        {
+            GameObject panel = new GameObject(name);
+            panel.transform.SetParent(parent, false);
+
+            RectTransform rt = panel.AddComponent<RectTransform>();
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
+            rt.offsetMin = Vector2.zero;
+            rt.offsetMax = Vector2.zero;
+
+            Image bg = panel.AddComponent<Image>();
+            bg.color = new Color(0.04f, 0.04f, 0.06f, 0.88f);
+
+            CreateLabel(panel.transform, "Title", title, 80,
+                new Vector2(0.5f, 0.55f), Vector2.zero, new Vector2(700, 140),
+                titleColor, FontStyles.Bold);
+
+            panel.SetActive(false);
+            return panel;
+        }
+
+        private static Color HexColor(string hex)
+        {
+            ColorUtility.TryParseHtmlString(hex, out Color c);
+            return c;
+        }
+
+        #endregion
+    }
+}
