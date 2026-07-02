@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
@@ -30,6 +31,17 @@ namespace SlideAndMatch
         [SerializeField] private Button winNewGameButton;
         [SerializeField] private RectTransform scoreBoxRect;
         [SerializeField] private RectTransform bestBoxRect;
+
+        [Header("Ads Settings")]
+        [SerializeField] private GameObject adPromptPanel;
+        [SerializeField] private GameObject adPlayPanel;
+        [SerializeField] private TextMeshProUGUI adCountdownText;
+        [SerializeField] private Button adCloseButton;
+
+        public static bool IsAdActive { get; private set; }
+
+        private float nextNetworkCheckTime = 0f;
+        private bool lastOnlineState = true;
 
         // ── Animation state ──
         private int lastScore = -1;
@@ -74,7 +86,7 @@ namespace SlideAndMatch
 
             // Wire buttons
             if (newGameButton  != null) newGameButton.onClick.AddListener(()  => gm.StartNewGame());
-            if (undoButton     != null) undoButton.onClick.AddListener(()     => gm.Undo());
+            if (undoButton     != null) undoButton.onClick.AddListener(()     => OnUndoClicked());
             if (retryButton    != null) retryButton.onClick.AddListener(()    => gm.StartNewGame());
             if (keepPlayingButton != null)
                 keepPlayingButton.onClick.AddListener(() => { gm.ContinuePlaying(); winPanel?.SetActive(false); });
@@ -83,6 +95,21 @@ namespace SlideAndMatch
 
             HideOverlays();
             UpdateScore(gm.Score, gm.BestScore);
+            UpdateUndoButtonState();
+        }
+
+        void Update()
+        {
+            if (Time.time >= nextNetworkCheckTime)
+            {
+                nextNetworkCheckTime = Time.time + 1f;
+                bool isOnline = Application.internetReachability != NetworkReachability.NotReachable;
+                if (isOnline != lastOnlineState)
+                {
+                    lastOnlineState = isOnline;
+                    UpdateUndoButtonState();
+                }
+            }
         }
 
         void OnDestroy()
@@ -103,6 +130,7 @@ namespace SlideAndMatch
 
         private void UpdateScore(int score, int best)
         {
+            UpdateUndoButtonState();
             // First time setup, just initialize and set immediately
             if (lastScore == -1)
             {
@@ -175,6 +203,10 @@ namespace SlideAndMatch
         {
             gameOverPanel?.SetActive(false);
             winPanel?.SetActive(false);
+            if (adPromptPanel != null) adPromptPanel.SetActive(false);
+            if (adPlayPanel != null) adPlayPanel.SetActive(false);
+            IsAdActive = false;
+            UpdateUndoButtonState();
         }
 
         // ───────────────────────────────────────────────────────
@@ -268,7 +300,6 @@ namespace SlideAndMatch
             // ── Win Panel ──────────────────────────────────────
             winPanel = CreateOverlay(canvasObj.transform, "WinPanel",
                 "YOU WIN!", HexColor("#8b5cf6"));
-
             keepPlayingButton = CreateBtn(winPanel.transform, "KeepPlayingBtn", "KEEP PLAYING",
                 new Vector2(0.5f, 0.42f), new Vector2(0, 20), new Vector2(340, 72),
                 HexColor("#8b5cf6"));
@@ -276,6 +307,116 @@ namespace SlideAndMatch
             winNewGameButton = CreateBtn(winPanel.transform, "WinNewGameBtn", "NEW GAME",
                 new Vector2(0.5f, 0.42f), new Vector2(0, -70), new Vector2(340, 72),
                 HexColor("#334155"));
+
+            // ── Ad Prompt Panel ────────────────────────────────
+            if (adPromptPanel == null)
+            {
+                adPromptPanel = CreateOverlay(canvasObj.transform, "AdPromptPanel", "", Color.clear);
+                GameObject container = CreateBox(adPromptPanel.transform, "ModalContainer",
+                    new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(800, 600), HexColor("#1e293b"));
+                
+                CreateLabel(container.transform, "PromptTitle", "WATCH AD TO UNDO", 48,
+                    new Vector2(0.5f, 1f), new Vector2(0, -80), new Vector2(700, 80),
+                    HexColor("#c4b5fd"), FontStyles.Bold);
+
+                CreateLabel(container.transform, "PromptDesc", "Watch a short video ad to undo your last move and keep playing!", 32,
+                    new Vector2(0.5f, 0.5f), new Vector2(0, 20), new Vector2(700, 200),
+                    HexColor("#94a3b8"), FontStyles.Normal);
+
+                Button watchBtn = CreateBtn(container.transform, "WatchAdBtn", "WATCH AD",
+                    new Vector2(0.5f, 0f), new Vector2(-180, 100), new Vector2(300, 80),
+                    HexColor("#22c55e"));
+                watchBtn.onClick.AddListener(() => StartAdFlow());
+
+                Button cancelBtn = CreateBtn(container.transform, "CancelBtn", "CANCEL",
+                    new Vector2(0.5f, 0f), new Vector2(180, 100), new Vector2(300, 80),
+                    HexColor("#475569"));
+                cancelBtn.onClick.AddListener(() => adPromptPanel.SetActive(false));
+            }
+
+            // ── Ad Play Panel ──────────────────────────────────
+            if (adPlayPanel == null)
+            {
+                adPlayPanel = CreateOverlay(canvasObj.transform, "AdPlayPanel", "", Color.clear);
+                adPlayPanel.GetComponent<Image>().color = new Color(0.06f, 0.08f, 0.12f, 1f);
+
+                CreateLabel(adPlayPanel.transform, "SponsoredLabel", "Sponsored Ad", 24,
+                    new Vector2(0f, 1f), new Vector2(140, -60), new Vector2(250, 40),
+                    HexColor("#64748b"), FontStyles.Normal).alignment = TextAlignmentOptions.Left;
+
+                adCountdownText = CreateLabel(adPlayPanel.transform, "AdCountdownText", "Reward in 5s", 28,
+                    new Vector2(1f, 1f), new Vector2(-160, -60), new Vector2(300, 40),
+                    HexColor("#f59e0b"), FontStyles.Bold);
+                adCountdownText.alignment = TextAlignmentOptions.Right;
+
+                GameObject adContent = CreateBox(adPlayPanel.transform, "AdContent",
+                    new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(900, 1100), HexColor("#1e1e24"));
+                
+                GameObject appIcon = CreateBox(adContent.transform, "AppIcon",
+                    new Vector2(0.5f, 1f), new Vector2(0, -150), new Vector2(180, 180), HexColor("#8b5cf6"));
+                CreateLabel(appIcon.transform, "IconText", "🧩", 80,
+                    Vector2.zero, Vector2.zero, Vector2.zero, Color.white, FontStyles.Bold)
+                    .rectTransform.anchorMax = Vector2.one;
+                var iconTextRt = appIcon.transform.Find("IconText").GetComponent<RectTransform>();
+                iconTextRt.anchorMin = Vector2.zero;
+                iconTextRt.anchorMax = Vector2.one;
+                iconTextRt.offsetMin = Vector2.zero;
+                iconTextRt.offsetMax = Vector2.zero;
+                iconTextRt.anchoredPosition = Vector2.zero;
+
+                CreateLabel(adContent.transform, "AppTitle", "Puzzle Match 3D", 48,
+                    new Vector2(0.5f, 1f), new Vector2(0, -320), new Vector2(800, 70),
+                    Color.white, FontStyles.Bold);
+
+                CreateLabel(adContent.transform, "AppStars", "⭐⭐⭐⭐⭐  4.9 (1.2M Reviews)", 26,
+                    new Vector2(0.5f, 1f), new Vector2(0, -390), new Vector2(800, 50),
+                    HexColor("#fbbf24"), FontStyles.Normal);
+
+                GameObject screenshot = CreateBox(adContent.transform, "AdScreenshot",
+                    new Vector2(0.5f, 0.5f), new Vector2(0, -60), new Vector2(760, 420), HexColor("#2d2d3a"));
+                CreateLabel(screenshot.transform, "ScreenshotText", "Slide and match numbers to win!", 28,
+                    new Vector2(0.5f, 0f), new Vector2(0, 40), new Vector2(700, 60),
+                    HexColor("#94a3b8"), FontStyles.Italic);
+
+                GameObject miniGrid = CreateBox(screenshot.transform, "MiniGrid",
+                    new Vector2(0.5f, 0.5f), new Vector2(0, 40), new Vector2(240, 240), HexColor("#1a1a24"));
+                
+                int[,] miniVals = new int[,] { { 2, 4 }, { 8, 16 } };
+                for (int mx = 0; mx < 2; mx++)
+                {
+                    for (int my = 0; my < 2; my++)
+                    {
+                        float px = (mx - 0.5f) * 100f;
+                        float py = (my - 0.5f) * 100f;
+                        GameObject miniTile = CreateBox(miniGrid.transform, "MiniTile",
+                            new Vector2(0.5f, 0.5f), new Vector2(px, py), new Vector2(80, 80), HexColor("#f97316"));
+                        CreateLabel(miniTile.transform, "Text", miniVals[mx, my].ToString(), 28,
+                            Vector2.zero, Vector2.zero, Vector2.zero, Color.white, FontStyles.Bold)
+                            .rectTransform.anchorMax = Vector2.one;
+                        var tRt = miniTile.transform.Find("Text").GetComponent<RectTransform>();
+                        tRt.anchorMin = Vector2.zero;
+                        tRt.anchorMax = Vector2.one;
+                        tRt.offsetMin = Vector2.zero;
+                        tRt.offsetMax = Vector2.zero;
+                        tRt.anchoredPosition = Vector2.zero;
+                    }
+                }
+
+                CreateLabel(adContent.transform, "AppDesc", "Challenge your brain with the most addicting slide and match game ever created! Smooth controls, 3D graphics, and hours of fun.", 28,
+                    new Vector2(0.5f, 0f), new Vector2(0, 200), new Vector2(800, 160),
+                    HexColor("#94a3b8"), FontStyles.Normal);
+
+                Button installBtn = CreateBtn(adContent.transform, "InstallBtn", "INSTALL NOW",
+                    new Vector2(0.5f, 0f), new Vector2(0, 60), new Vector2(600, 90),
+                    HexColor("#22c55e"));
+                installBtn.onClick.AddListener(() => Debug.Log("Mock Ad Install Button Clicked!"));
+
+                adCloseButton = CreateBtn(adPlayPanel.transform, "AdCloseBtn", "X",
+                    new Vector2(1f, 1f), new Vector2(-70, -60), new Vector2(70, 70),
+                    HexColor("#ef4444"));
+                adCloseButton.onClick.AddListener(() => CloseAdAndUndo());
+                adCloseButton.gameObject.SetActive(false);
+            }
         }
 
         // ── Helpers ────────────────────────────────────────────
@@ -340,6 +481,7 @@ namespace SlideAndMatch
             cb.highlightedColor = new Color(1.15f, 1.15f, 1.15f, 1f);
             cb.pressedColor     = new Color(0.85f, 0.85f, 0.85f, 1f);
             cb.selectedColor    = Color.white;
+            cb.disabledColor    = new Color(1f, 1f, 1f, 0.35f);
             btn.colors = cb;
 
             // Stretched label
@@ -443,7 +585,7 @@ namespace SlideAndMatch
             scoreTickCoroutine = null;
         }
 
-        private void SpawnCanvasFloatingText(RectTransform parentBox, string text)
+        private void SpawnCanvasFloatingText(RectTransform parentBox, string text, Color? customColor = null)
         {
             if (parentBox == null) return;
 
@@ -461,7 +603,7 @@ namespace SlideAndMatch
             tmp.fontSize = 32f;
             tmp.alignment = TextAlignmentOptions.Center;
             tmp.fontStyle = FontStyles.Bold;
-            tmp.color = HexColor("#eab308"); // beautiful yellow/gold score color
+            tmp.color = customColor ?? HexColor("#eab308");
 
             StartCoroutine(AnimateCanvasFloatingText(go, rt, tmp));
         }
@@ -488,6 +630,134 @@ namespace SlideAndMatch
             }
 
             Destroy(go);
+        }
+
+        private Action onMockAdClosedCallback;
+
+        private void OnUndoClicked()
+        {
+            var gm = GameManager.Instance;
+            if (gm == null || !gm.CanUndo) return;
+
+            // Block undo in offline mode
+            if (Application.internetReachability == NetworkReachability.NotReachable)
+            {
+                SpawnCanvasFloatingText(undoButton.GetComponent<RectTransform>(), "Internet Required!", HexColor("#ef4444"));
+                UpdateUndoButtonState();
+                return;
+            }
+
+            var gb = FindAnyObjectByType<GameBoard>();
+            if (gb != null && gb.IsAnimating) return;
+
+            if (adPromptPanel != null)
+            {
+                adPromptPanel.SetActive(true);
+            }
+            else
+            {
+                StartAdFlow();
+            }
+        }
+
+        private void StartAdFlow()
+        {
+            if (adPromptPanel != null) adPromptPanel.SetActive(false);
+
+            if (AdManager.Instance != null)
+            {
+                AdManager.Instance.ShowRewardedAd(() =>
+                {
+                    if (GameManager.Instance != null)
+                    {
+                        GameManager.Instance.Undo();
+                    }
+                    UpdateUndoButtonState();
+                });
+            }
+            else
+            {
+                StartMockAdSequence(() =>
+                {
+                    if (GameManager.Instance != null)
+                    {
+                        GameManager.Instance.Undo();
+                    }
+                    UpdateUndoButtonState();
+                });
+            }
+        }
+
+        private void UpdateUndoButtonState()
+        {
+            if (undoButton != null && GameManager.Instance != null)
+            {
+                bool isOnline = Application.internetReachability != NetworkReachability.NotReachable;
+                undoButton.interactable = GameManager.Instance.CanUndo && !IsAdActive && isOnline;
+            }
+        }
+
+        public void StartMockAdSequence(Action onComplete)
+        {
+            StartCoroutine(PlayMockAdRoutine(onComplete));
+        }
+
+        private IEnumerator PlayMockAdRoutine(Action onComplete)
+        {
+            if (adPromptPanel != null) adPromptPanel.SetActive(false);
+            if (adPlayPanel != null) adPlayPanel.SetActive(true);
+
+            IsAdActive = true;
+            UpdateUndoButtonState();
+
+            if (adCloseButton != null)
+            {
+                adCloseButton.gameObject.SetActive(false);
+            }
+
+            int countdown = 5;
+            while (countdown > 0)
+            {
+                if (adCountdownText != null)
+                {
+                    adCountdownText.text = $"Reward in {countdown}s";
+                }
+                yield return new WaitForSeconds(1f);
+                countdown--;
+            }
+
+            if (adCountdownText != null)
+            {
+                adCountdownText.text = "Reward Granted!";
+                adCountdownText.color = HexColor("#22c55e");
+            }
+
+            if (adCloseButton != null)
+            {
+                adCloseButton.gameObject.SetActive(true);
+                StartCoroutine(PunchScale(adCloseButton.GetComponent<RectTransform>(), 0.2f, 0.3f));
+            }
+
+            onMockAdClosedCallback = onComplete;
+        }
+
+        private void CloseAdAndUndo()
+        {
+            if (adPlayPanel != null) adPlayPanel.SetActive(false);
+            IsAdActive = false;
+
+            if (adCountdownText != null)
+            {
+                adCountdownText.color = HexColor("#f59e0b");
+            }
+
+            if (onMockAdClosedCallback != null)
+            {
+                onMockAdClosedCallback.Invoke();
+                onMockAdClosedCallback = null;
+            }
+
+            UpdateUndoButtonState();
         }
 
         #endregion

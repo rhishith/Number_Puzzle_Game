@@ -26,7 +26,7 @@ namespace SlideAndMatch
 
         void Update()
         {
-            if (gameBoard == null || gameBoard.IsAnimating) return;
+            if (gameBoard == null || gameBoard.IsAnimating || UIManager.IsAdActive) return;
 
             HandleKeyboard();
             HandlePointerInput();
