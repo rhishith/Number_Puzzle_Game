@@ -28,14 +28,18 @@ namespace SlideAndMatch
         private Tile[,] tileGrid = new Tile[4, 4];
         private float totalCellSize;
         private Vector3 boardOrigin;
+        private Vector3 originalBoardPos;
 
         public bool IsAnimating { get; private set; }
+
+        private Coroutine boardShakeCoroutine;
 
         // ───────────────────────────────────────────────────────
         // Lifecycle
         // ───────────────────────────────────────────────────────
         void Start()
         {
+            originalBoardPos = transform.position;
             totalCellSize = cellSize + cellSpacing;
             float halfBoard = (totalCellSize * 4f - cellSpacing) / 2f;
             boardOrigin = new Vector3(
@@ -186,7 +190,7 @@ namespace SlideAndMatch
             MoveResult result = GameManager.Instance.Move(dir);
             if (!result.isValid) return;
 
-            StartCoroutine(AnimateMove(result));
+            StartCoroutine(AnimateMove(result, dir));
         }
 
         // ───────────────────────────────────────────────────────
@@ -210,7 +214,7 @@ namespace SlideAndMatch
             public Vector2Int to;
         }
 
-        private IEnumerator AnimateMove(MoveResult result)
+        private IEnumerator AnimateMove(MoveResult result, Direction swipeDir)
         {
             IsAnimating = true;
 
@@ -320,6 +324,17 @@ namespace SlideAndMatch
                 while (!allDone) yield return null;
             }
 
+            // Trigger board shake on impact
+            Vector3 shakeDir = Vector3.zero;
+            switch (swipeDir)
+            {
+                case Direction.Left:  shakeDir = Vector3.left; break;
+                case Direction.Right: shakeDir = Vector3.right; break;
+                case Direction.Up:    shakeDir = Vector3.up; break;
+                case Direction.Down:  shakeDir = Vector3.down; break;
+            }
+            boardShakeCoroutine = StartCoroutine(ShakeBoard(shakeDir));
+
             // ── 5. Merge cleanup (destroy consumed, pop survivor) ─
             foreach (var t in tilesToDestroy)
             {
@@ -332,6 +347,7 @@ namespace SlideAndMatch
                 {
                     kv.Key.Value = kv.Value;
                     kv.Key.AnimateMerge();
+                    SpawnWorldFloatingText(kv.Key.transform.position, kv.Value);
                 }
             }
 
@@ -436,6 +452,80 @@ namespace SlideAndMatch
             tile.Initialize(sr, tmp, tileObj.transform.localScale);
 
             return tileObj;
+        }
+
+        // ───────────────────────────────────────────────────────
+        // Board Shake Animation
+        // ───────────────────────────────────────────────────────
+
+        private IEnumerator ShakeBoard(Vector3 direction)
+        {
+            float duration = 0.15f;
+            float elapsed = 0f;
+            float maxOffset = 0.08f; // small, subtle offset
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                float percent = elapsed / duration;
+                float decay = 1f - percent;
+
+                // Sin wave oscillation (rebounding shake)
+                float offsetAmount = Mathf.Sin(percent * Mathf.PI * 4f) * maxOffset * decay;
+                transform.position = originalBoardPos + direction * offsetAmount;
+
+                yield return null;
+            }
+
+            transform.position = originalBoardPos;
+            boardShakeCoroutine = null;
+        }
+
+        // ───────────────────────────────────────────────────────
+        // Floating Text Animation
+        // ───────────────────────────────────────────────────────
+
+        private void SpawnWorldFloatingText(Vector3 position, int value)
+        {
+            GameObject go = new GameObject("FloatingText_" + value);
+            go.transform.position = position + Vector3.up * 0.3f; // Start slightly above the tile
+            
+            TextMeshPro tmp = go.AddComponent<TextMeshPro>();
+            tmp.text = "+" + value;
+            tmp.fontSize = 5f;
+            tmp.alignment = TextAlignmentOptions.Center;
+            tmp.fontStyle = FontStyles.Bold;
+            tmp.sortingOrder = 5; // Render in front of tiles
+            
+            // Text color matches the style of the merged tile color
+            tmp.color = TileStyleLookup.GetTileColor(value);
+            
+            StartCoroutine(AnimateWorldFloatingText(go, tmp));
+        }
+
+        private IEnumerator AnimateWorldFloatingText(GameObject go, TextMeshPro tmp)
+        {
+            float duration = 0.6f;
+            float elapsed = 0f;
+            Vector3 startPos = go.transform.position;
+            Vector3 endPos = startPos + Vector3.up * 0.8f;
+            Color startColor = tmp.color;
+            Color endColor = new Color(startColor.r, startColor.g, startColor.b, 0f);
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                float t = elapsed / duration;
+
+                // Ease out cubic path
+                float ease = 1f - Mathf.Pow(1f - t, 3f);
+                go.transform.position = Vector3.Lerp(startPos, endPos, ease);
+                tmp.color = Color.Lerp(startColor, endColor, t);
+
+                yield return null;
+            }
+
+            Destroy(go);
         }
 
         // ───────────────────────────────────────────────────────

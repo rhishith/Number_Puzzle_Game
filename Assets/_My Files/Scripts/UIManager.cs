@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
@@ -27,6 +28,18 @@ namespace SlideAndMatch
         [SerializeField] private Button retryButton;
         [SerializeField] private Button keepPlayingButton;
         [SerializeField] private Button winNewGameButton;
+        [SerializeField] private RectTransform scoreBoxRect;
+        [SerializeField] private RectTransform bestBoxRect;
+
+        // ── Animation state ──
+        private int lastScore = -1;
+        private int lastBest = -1;
+        private int displayedScore = 0;
+        private int displayedBest = 0;
+
+        private Coroutine scoreTickCoroutine;
+        private Coroutine scorePunchCoroutine;
+        private Coroutine bestPunchCoroutine;
 
         // ───────────────────────────────────────────────────────
         // Lifecycle
@@ -35,6 +48,12 @@ namespace SlideAndMatch
         {
             // Auto-create UI if nothing is wired
             if (scoreText == null) CreateUI();
+
+            // Try to resolve rect references if still null (for custom inspector UIs)
+            if (scoreBoxRect == null && scoreText != null && scoreText.transform.parent != null)
+                scoreBoxRect = scoreText.transform.parent.GetComponent<RectTransform>();
+            if (bestBoxRect == null && bestScoreText != null && bestScoreText.transform.parent != null)
+                bestBoxRect = bestScoreText.transform.parent.GetComponent<RectTransform>();
 
             // Ensure an EventSystem exists (required for buttons)
             EnsureEventSystem();
@@ -84,8 +103,61 @@ namespace SlideAndMatch
 
         private void UpdateScore(int score, int best)
         {
-            if (scoreText     != null) scoreText.text     = score.ToString();
-            if (bestScoreText != null) bestScoreText.text = best.ToString();
+            // First time setup, just initialize and set immediately
+            if (lastScore == -1)
+            {
+                lastScore = score;
+                lastBest = best;
+                displayedScore = score;
+                displayedBest = best;
+                if (scoreText != null) scoreText.text = score.ToString();
+                if (bestScoreText != null) bestScoreText.text = best.ToString();
+                return;
+            }
+
+            bool scoreIncreased = score > lastScore;
+            bool bestIncreased = best > lastBest;
+
+            // Handle Score Increase
+            if (scoreIncreased)
+            {
+                // Trigger score box punch
+                if (scorePunchCoroutine != null) StopCoroutine(scorePunchCoroutine);
+                scorePunchCoroutine = StartCoroutine(PunchScale(scoreBoxRect, 0.15f, 0.2f));
+
+                // Spawn UI floating text popup above the score box
+                SpawnCanvasFloatingText(scoreBoxRect, "+" + (score - lastScore));
+            }
+            else
+            {
+                // Instant update if score decreased or reset
+                displayedScore = score;
+                if (scoreText != null) scoreText.text = score.ToString();
+            }
+
+            // Handle Best Score Increase
+            if (bestIncreased)
+            {
+                // Trigger best box punch
+                if (bestPunchCoroutine != null) StopCoroutine(bestPunchCoroutine);
+                bestPunchCoroutine = StartCoroutine(PunchScale(bestBoxRect, 0.15f, 0.2f));
+            }
+            else
+            {
+                // Instant update if best score decreased or reset
+                displayedBest = best;
+                if (bestScoreText != null) bestScoreText.text = best.ToString();
+            }
+
+            // If score or best increased, tick them up smoothly
+            if (scoreIncreased || bestIncreased)
+            {
+                if (scoreTickCoroutine != null) StopCoroutine(scoreTickCoroutine);
+                scoreTickCoroutine = StartCoroutine(TickScoresCoroutine(score, best));
+            }
+
+            lastScore = score;
+            lastBest = best;
         }
 
         private void ShowGameOver()
@@ -152,6 +224,7 @@ namespace SlideAndMatch
             GameObject scoreBox = CreateBox(canvasObj.transform, "ScoreBox",
                 new Vector2(0.5f, 1f), new Vector2(-150, -240), new Vector2(250, 110),
                 HexColor("#1e1e24"));
+            scoreBoxRect = scoreBox.GetComponent<RectTransform>();
 
             CreateLabel(scoreBox.transform, "ScoreLabel", "SCORE", 26,
                 new Vector2(0.5f, 1f), new Vector2(0, -10), new Vector2(220, 36),
@@ -165,6 +238,7 @@ namespace SlideAndMatch
             GameObject bestBox = CreateBox(canvasObj.transform, "BestBox",
                 new Vector2(0.5f, 1f), new Vector2(150, -240), new Vector2(250, 110),
                 HexColor("#1e1e24"));
+            bestBoxRect = bestBox.GetComponent<RectTransform>();
 
             CreateLabel(bestBox.transform, "BestLabel", "BEST", 26,
                 new Vector2(0.5f, 1f), new Vector2(0, -10), new Vector2(220, 36),
@@ -312,6 +386,108 @@ namespace SlideAndMatch
         {
             ColorUtility.TryParseHtmlString(hex, out Color c);
             return c;
+        }
+
+        // ───────────────────────────────────────────────────────
+        // UI Animation Helpers
+        // ───────────────────────────────────────────────────────
+
+        private IEnumerator PunchScale(RectTransform rect, float punchFactor, float duration)
+        {
+            if (rect == null) yield break;
+
+            Vector3 originalScale = Vector3.one;
+            float elapsed = 0f;
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                float t = elapsed / duration;
+                
+                // Sine wave punch multiplier: 1.0 -> 1.15 -> 1.0
+                float scaleMultiplier = 1f + Mathf.Sin(t * Mathf.PI) * punchFactor;
+                rect.localScale = originalScale * scaleMultiplier;
+                yield return null;
+            }
+
+            rect.localScale = originalScale;
+        }
+
+        private IEnumerator TickScoresCoroutine(int targetScore, int targetBest)
+        {
+            float duration = 0.25f;
+            float elapsed = 0f;
+            int startScore = displayedScore;
+            int startBest = displayedBest;
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                float t = elapsed / duration;
+
+                // Ticking values
+                displayedScore = Mathf.RoundToInt(Mathf.Lerp(startScore, targetScore, t));
+                displayedBest = Mathf.RoundToInt(Mathf.Lerp(startBest, targetBest, t));
+
+                if (scoreText != null) scoreText.text = displayedScore.ToString();
+                if (bestScoreText != null) bestScoreText.text = displayedBest.ToString();
+
+                yield return null;
+            }
+
+            displayedScore = targetScore;
+            displayedBest = targetBest;
+            if (scoreText != null) scoreText.text = displayedScore.ToString();
+            if (bestScoreText != null) bestScoreText.text = displayedBest.ToString();
+            
+            scoreTickCoroutine = null;
+        }
+
+        private void SpawnCanvasFloatingText(RectTransform parentBox, string text)
+        {
+            if (parentBox == null) return;
+
+            GameObject go = new GameObject("UIFloatingText");
+            go.transform.SetParent(parentBox, false);
+
+            RectTransform rt = go.AddComponent<RectTransform>();
+            rt.anchorMin = new Vector2(0.5f, 1f);
+            rt.anchorMax = new Vector2(0.5f, 1f);
+            rt.anchoredPosition = new Vector2(0f, 10f); // start slightly above the box
+            rt.sizeDelta = new Vector2(200f, 50f);
+
+            TextMeshProUGUI tmp = go.AddComponent<TextMeshProUGUI>();
+            tmp.text = text;
+            tmp.fontSize = 32f;
+            tmp.alignment = TextAlignmentOptions.Center;
+            tmp.fontStyle = FontStyles.Bold;
+            tmp.color = HexColor("#eab308"); // beautiful yellow/gold score color
+
+            StartCoroutine(AnimateCanvasFloatingText(go, rt, tmp));
+        }
+
+        private IEnumerator AnimateCanvasFloatingText(GameObject go, RectTransform rt, TextMeshProUGUI tmp)
+        {
+            float duration = 0.8f;
+            float elapsed = 0f;
+            Vector2 startPos = rt.anchoredPosition;
+            Vector2 endPos = startPos + new Vector2(0f, 60f); // float up 60 units
+            Color startColor = tmp.color;
+            Color endColor = new Color(startColor.r, startColor.g, startColor.b, 0f);
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                float t = elapsed / duration;
+
+                float ease = 1f - Mathf.Pow(1f - t, 3f); // EaseOutCubic
+                rt.anchoredPosition = Vector2.Lerp(startPos, endPos, ease);
+                tmp.color = Color.Lerp(startColor, endColor, t);
+
+                yield return null;
+            }
+
+            Destroy(go);
         }
 
         #endregion
