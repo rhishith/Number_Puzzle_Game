@@ -1,12 +1,11 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 namespace SlideAndMatch
 {
     /// <summary>
     /// Detects keyboard (Arrow / WASD) and touch-swipe input using
-    /// Unity's new Input System, then forwards the direction to
-    /// GameBoard.HandleSwipe().  Auto-finds GameBoard if no reference is assigned.
+    /// Unity's legacy Input system, then forwards the direction to
+    /// GameBoard.HandleSwipe(). Auto-finds GameBoard if no reference is assigned.
     /// </summary>
     public class InputManager : MonoBehaviour
     {
@@ -32,57 +31,50 @@ namespace SlideAndMatch
             HandlePointerInput();
         }
 
-        // ── Keyboard (new Input System) ───────────────────────
+        // ── Keyboard (legacy Input) ───────────────────────
         private void HandleKeyboard()
         {
-            var kb = Keyboard.current;
-            if (kb == null) return;
-
-            if (kb.leftArrowKey.wasPressedThisFrame || kb.aKey.wasPressedThisFrame)
+            if (Input.GetKeyDown(KeyCode.LeftArrow) || Input.GetKeyDown(KeyCode.A))
                 gameBoard.HandleSwipe(Direction.Left);
-            else if (kb.rightArrowKey.wasPressedThisFrame || kb.dKey.wasPressedThisFrame)
+            else if (Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.D))
                 gameBoard.HandleSwipe(Direction.Right);
-            else if (kb.upArrowKey.wasPressedThisFrame || kb.wKey.wasPressedThisFrame)
+            else if (Input.GetKeyDown(KeyCode.UpArrow) || Input.GetKeyDown(KeyCode.W))
                 gameBoard.HandleSwipe(Direction.Up);
-            else if (kb.downArrowKey.wasPressedThisFrame || kb.sKey.wasPressedThisFrame)
+            else if (Input.GetKeyDown(KeyCode.DownArrow) || Input.GetKeyDown(KeyCode.S))
                 gameBoard.HandleSwipe(Direction.Down);
         }
 
-        // ── Touch + Mouse (new Input System) ──────────────────
+        // ── Touch + Mouse (legacy Input) ──────────────────
         private void HandlePointerInput()
         {
-            // Prefer touch over mouse
-            var touchscreen = Touchscreen.current;
-            if (touchscreen != null)
+            // Prefer touch over mouse (mobile devices)
+            if (Input.touchCount > 0)
             {
-                var primary = touchscreen.primaryTouch;
+                Touch touch = Input.GetTouch(0);
 
-                if (primary.press.wasPressedThisFrame)
+                if (touch.phase == TouchPhase.Began)
                 {
-                    pointerStart = primary.position.ReadValue();
+                    pointerStart = touch.position;
                     isSwiping = true;
                 }
-                else if (primary.press.wasReleasedThisFrame && isSwiping)
+                else if (touch.phase == TouchPhase.Ended && isSwiping)
                 {
                     isSwiping = false;
-                    ProcessSwipe(pointerStart, primary.position.ReadValue());
+                    ProcessSwipe(pointerStart, touch.position);
                 }
                 return;
             }
 
             // Mouse fallback (editor / desktop)
-            var mouse = Mouse.current;
-            if (mouse == null) return;
-
-            if (mouse.leftButton.wasPressedThisFrame)
+            if (Input.GetMouseButtonDown(0))
             {
-                pointerStart = mouse.position.ReadValue();
+                pointerStart = Input.mousePosition;
                 isSwiping = true;
             }
-            else if (mouse.leftButton.wasReleasedThisFrame && isSwiping)
+            else if (Input.GetMouseButtonUp(0) && isSwiping)
             {
                 isSwiping = false;
-                ProcessSwipe(pointerStart, mouse.position.ReadValue());
+                ProcessSwipe(pointerStart, Input.mousePosition);
             }
         }
 

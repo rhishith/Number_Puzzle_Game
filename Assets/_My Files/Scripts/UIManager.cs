@@ -59,7 +59,14 @@ namespace SlideAndMatch
         void Start()
         {
             // Auto-create UI if nothing is wired
-            if (scoreText == null) CreateUI();
+            if (scoreText == null)
+            {
+                CreateUI();
+            }
+            else
+            {
+                EnsureAdPanelsCreated();
+            }
 
             // Try to resolve rect references if still null (for custom inspector UIs)
             if (scoreBoxRect == null && scoreText != null && scoreText.transform.parent != null)
@@ -131,6 +138,14 @@ namespace SlideAndMatch
         private void UpdateScore(int score, int best)
         {
             UpdateUndoButtonState();
+
+            // Stop any running tick coroutine to prevent overwriting the score
+            if (scoreTickCoroutine != null)
+            {
+                StopCoroutine(scoreTickCoroutine);
+                scoreTickCoroutine = null;
+            }
+
             // First time setup, just initialize and set immediately
             if (lastScore == -1)
             {
@@ -215,11 +230,16 @@ namespace SlideAndMatch
 
         private void EnsureEventSystem()
         {
-            if (FindAnyObjectByType<EventSystem>() == null)
+            EventSystem es = FindAnyObjectByType<EventSystem>();
+            if (es == null)
             {
-                GameObject es = new GameObject("EventSystem");
-                es.AddComponent<EventSystem>();
-                es.AddComponent<StandaloneInputModule>();
+                GameObject esObj = new GameObject("EventSystem");
+                es = esObj.AddComponent<EventSystem>();
+            }
+
+            if (es.GetComponent<StandaloneInputModule>() == null)
+            {
+                es.gameObject.AddComponent<StandaloneInputModule>();
             }
         }
 
@@ -308,10 +328,27 @@ namespace SlideAndMatch
                 new Vector2(0.5f, 0.42f), new Vector2(0, -70), new Vector2(340, 72),
                 HexColor("#334155"));
 
+            CreateAdPanels(canvasObj.transform);
+        }
+
+        private void EnsureAdPanelsCreated()
+        {
+            Canvas canvas = GetComponentInParent<Canvas>();
+            if (canvas == null)
+            {
+                canvas = FindAnyObjectByType<Canvas>();
+            }
+            if (canvas == null) return;
+
+            CreateAdPanels(canvas.transform);
+        }
+
+        private void CreateAdPanels(Transform parent)
+        {
             // ── Ad Prompt Panel ────────────────────────────────
             if (adPromptPanel == null)
             {
-                adPromptPanel = CreateOverlay(canvasObj.transform, "AdPromptPanel", "", Color.clear);
+                adPromptPanel = CreateOverlay(parent, "AdPromptPanel", "", Color.clear);
                 GameObject container = CreateBox(adPromptPanel.transform, "ModalContainer",
                     new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(800, 600), HexColor("#1e293b"));
                 
@@ -337,7 +374,7 @@ namespace SlideAndMatch
             // ── Ad Play Panel ──────────────────────────────────
             if (adPlayPanel == null)
             {
-                adPlayPanel = CreateOverlay(canvasObj.transform, "AdPlayPanel", "", Color.clear);
+                adPlayPanel = CreateOverlay(parent, "AdPlayPanel", "", Color.clear);
                 adPlayPanel.GetComponent<Image>().color = new Color(0.06f, 0.08f, 0.12f, 1f);
 
                 CreateLabel(adPlayPanel.transform, "SponsoredLabel", "Sponsored Ad", 24,
