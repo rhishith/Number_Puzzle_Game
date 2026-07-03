@@ -49,9 +49,13 @@ namespace SlideAndMatch
 
         // ── Grid ──────────────────────────────────────────────
         private int[,] grid = new int[4, 4];
-        private int[,] undoGrid = new int[4, 4];
-        private int undoScore;
-        private bool canUndo;
+
+        private struct UndoState
+        {
+            public int[,] grid;
+            public int score;
+        }
+        private Stack<UndoState> undoHistory = new Stack<UndoState>();
 
         // ── Score ─────────────────────────────────────────────
         public int Score { get; private set; }
@@ -93,7 +97,7 @@ namespace SlideAndMatch
             Score = 0;
             hasWon = false;
             keepPlaying = false;
-            canUndo = false;
+            undoHistory.Clear();
             OnScoreChanged?.Invoke(Score, BestScore);
             OnGameStarted?.Invoke();
         }
@@ -187,7 +191,6 @@ namespace SlideAndMatch
             {
                 // Nothing changed — roll back so undo state stays clean
                 RestoreState();
-                canUndo = false;
             }
 
             return result;
@@ -228,18 +231,16 @@ namespace SlideAndMatch
         // Undo
         // ───────────────────────────────────────────────────────
 
-        public bool CanUndo => canUndo;
+        public bool CanUndo => undoHistory.Count > 0;
 
         public void Undo()
         {
-            if (!canUndo) return;
+            if (undoHistory.Count == 0) return;
 
-            for (int x = 0; x < 4; x++)
-                for (int y = 0; y < 4; y++)
-                    grid[x, y] = undoGrid[x, y];
+            UndoState state = undoHistory.Pop();
+            grid = state.grid;
+            Score = state.score;
 
-            Score = undoScore;
-            canUndo = false;
             OnScoreChanged?.Invoke(Score, BestScore);
             OnBoardRefreshNeeded?.Invoke();
         }
@@ -250,19 +251,22 @@ namespace SlideAndMatch
 
         private void SaveState()
         {
+            int[,] gridCopy = new int[4, 4];
             for (int x = 0; x < 4; x++)
                 for (int y = 0; y < 4; y++)
-                    undoGrid[x, y] = grid[x, y];
-            undoScore = Score;
-            canUndo = true;
+                    gridCopy[x, y] = grid[x, y];
+
+            undoHistory.Push(new UndoState { grid = gridCopy, score = Score });
         }
 
         private void RestoreState()
         {
-            for (int x = 0; x < 4; x++)
-                for (int y = 0; y < 4; y++)
-                    grid[x, y] = undoGrid[x, y];
-            Score = undoScore;
+            if (undoHistory.Count > 0)
+            {
+                UndoState state = undoHistory.Pop();
+                grid = state.grid;
+                Score = state.score;
+            }
         }
 
         /// <summary>
