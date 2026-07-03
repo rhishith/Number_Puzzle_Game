@@ -12,6 +12,9 @@ namespace SlideAndMatch
         [SerializeField] private string rewardedAdUnitId = "rewarded_ad_unit_id";
         [SerializeField] private bool useMockFallback = true;
 
+        [Header("Ad Toggle")]
+        public bool adsEnabled = true;
+
         private LevelPlayRewardedAd rewardedAd;
         private Action onRewardCallback;
         private bool isInitialized = false;
@@ -130,6 +133,17 @@ namespace SlideAndMatch
         public void ShowRewardedAd(Action onRewardGranted)
         {
             onRewardCallback = onRewardGranted;
+
+            if (!adsEnabled)
+            {
+                Debug.Log("[AdManager] Ads are disabled via adsEnabled toggle. Granting reward directly.");
+                if (onRewardCallback != null)
+                {
+                    onRewardCallback.Invoke();
+                    onRewardCallback = null;
+                }
+                return;
+            }
 
             // Check if LevelPlay ad is ready
             if (isInitialized && rewardedAd != null && rewardedAd.IsAdReady())

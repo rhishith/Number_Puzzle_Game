@@ -676,24 +676,35 @@ namespace SlideAndMatch
             var gm = GameManager.Instance;
             if (gm == null || !gm.CanUndo) return;
 
-            // Block undo in offline mode
-            if (Application.internetReachability == NetworkReachability.NotReachable)
-            {
-                SpawnCanvasFloatingText(undoButton.GetComponent<RectTransform>(), "Internet Required!", HexColor("#ef4444"));
-                UpdateUndoButtonState();
-                return;
-            }
-
             var gb = FindAnyObjectByType<GameBoard>();
             if (gb != null && gb.IsAnimating) return;
 
-            if (adPromptPanel != null)
+            bool adsAreEnabled = AdManager.Instance == null || AdManager.Instance.adsEnabled;
+
+            if (adsAreEnabled)
             {
-                adPromptPanel.SetActive(true);
+                // Block undo in offline mode
+                if (Application.internetReachability == NetworkReachability.NotReachable)
+                {
+                    SpawnCanvasFloatingText(undoButton.GetComponent<RectTransform>(), "Internet Required!", HexColor("#ef4444"));
+                    UpdateUndoButtonState();
+                    return;
+                }
+
+                if (adPromptPanel != null)
+                {
+                    adPromptPanel.SetActive(true);
+                }
+                else
+                {
+                    StartAdFlow();
+                }
             }
             else
             {
-                StartAdFlow();
+                // Directly undo if ads are disabled
+                gm.Undo();
+                UpdateUndoButtonState();
             }
         }
 
@@ -729,8 +740,16 @@ namespace SlideAndMatch
         {
             if (undoButton != null && GameManager.Instance != null)
             {
-                bool isOnline = Application.internetReachability != NetworkReachability.NotReachable;
-                undoButton.interactable = GameManager.Instance.CanUndo && !IsAdActive && isOnline;
+                bool adsAreEnabled = AdManager.Instance == null || AdManager.Instance.adsEnabled;
+                if (adsAreEnabled)
+                {
+                    bool isOnline = Application.internetReachability != NetworkReachability.NotReachable;
+                    undoButton.interactable = GameManager.Instance.CanUndo && !IsAdActive && isOnline;
+                }
+                else
+                {
+                    undoButton.interactable = GameManager.Instance.CanUndo && !IsAdActive;
+                }
             }
         }
 
