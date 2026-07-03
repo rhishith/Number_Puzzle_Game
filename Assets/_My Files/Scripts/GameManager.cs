@@ -55,6 +55,9 @@ namespace SlideAndMatch
             public int[,] grid;
             public int score;
         }
+        [Header("Undo Settings")]
+        public bool allowMultipleUndos = true;
+
         private Stack<UndoState> undoHistory = new Stack<UndoState>();
 
         // ── Score ─────────────────────────────────────────────
@@ -241,6 +244,11 @@ namespace SlideAndMatch
             grid = state.grid;
             Score = state.score;
 
+            if (!allowMultipleUndos)
+            {
+                undoHistory.Clear();
+            }
+
             OnScoreChanged?.Invoke(Score, BestScore);
             OnBoardRefreshNeeded?.Invoke();
         }
@@ -255,6 +263,11 @@ namespace SlideAndMatch
             for (int x = 0; x < 4; x++)
                 for (int y = 0; y < 4; y++)
                     gridCopy[x, y] = grid[x, y];
+
+            if (!allowMultipleUndos)
+            {
+                undoHistory.Clear();
+            }
 
             undoHistory.Push(new UndoState { grid = gridCopy, score = Score });
         }

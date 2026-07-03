@@ -387,6 +387,7 @@ MonoBehaviour:
   androidAppKey: 27019e64d
   rewardedAdUnitId: qk9kx3k9ib445bdb
   useMockFallback: 1
+  adsEnabled: 0
 --- !u!1 &1508816395
 GameObject:
   m_ObjectHideFlags: 0
@@ -558,7 +559,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 00f17afd074a4ab47a12244193fa7f05, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SlideAndMatch.InputManager
-  gameBoard: {fileID: 0}
+  gameBoard: {fileID: 1508816400}
   swipeThreshold: 50
 --- !u!114 &1508816400
 MonoBehaviour:
@@ -589,6 +590,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6f6e0333af8c2284cb207017dc3b0066, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SlideAndMatch.GameManager
+  allowMultipleUndos: 1
 --- !u!4 &1508816402
 Transform:
   m_ObjectHideFlags: 0

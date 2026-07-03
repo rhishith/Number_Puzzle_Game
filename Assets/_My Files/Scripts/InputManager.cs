@@ -25,6 +25,11 @@ namespace SlideAndMatch
 
         void Update()
         {
+            // if (Input.GetKeyDown(KeyCode.Escape))
+            // {
+            //     Screen.fullScreen = false;
+            // }
+
             if (gameBoard == null || gameBoard.IsAnimating || UIManager.IsAdActive) return;
 
             HandleKeyboard();
