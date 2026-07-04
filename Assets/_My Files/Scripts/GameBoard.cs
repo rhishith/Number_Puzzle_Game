@@ -357,9 +357,19 @@ namespace SlideAndMatch
 
             // ── 6. Sound ───────────────────────────────────────
             if (result.merges.Count > 0)
-                AudioManager.Instance?.PlayMerge();
+            {
+                int maxMergedValue = 4;
+                foreach (var merge in result.merges)
+                {
+                    if (merge.newValue > maxMergedValue)
+                        maxMergedValue = merge.newValue;
+                }
+                AudioManager.Instance?.PlayMerge(maxMergedValue);
+            }
             else
+            {
                 AudioManager.Instance?.PlaySlide();
+            }
 
             // ── 7. Spawn new tile ──────────────────────────────
             yield return new WaitForSeconds(0.05f);

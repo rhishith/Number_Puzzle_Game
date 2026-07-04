@@ -74,9 +74,30 @@ namespace SlideAndMatch
         }
 
         // ── Public API ────────────────────────────────────────
-        public void PlaySlide()    => Play(slideClip);
-        public void PlayMerge()    => Play(mergeClip);
-        public void PlayGameOver() => Play(gameOverClip);
+        public void PlaySlide()
+        {
+            if (source != null) source.pitch = 1.0f;
+            Play(slideClip);
+        }
+
+        public void PlayMerge(int mergedValue = 4)
+        {
+            if (source != null && mergeClip != null && !SfxMuted)
+            {
+                // Calculate pitch: base pitch is 1.0 (for 4). Every double in value (e.g. 8, 16, 32...) adds 0.12f to pitch
+                float pitch = 1.0f + Mathf.Log(mergedValue / 4f, 2f) * 0.12f;
+                pitch = Mathf.Clamp(pitch, 0.8f, 2.5f);
+
+                source.pitch = pitch;
+                source.PlayOneShot(mergeClip, masterVolume);
+            }
+        }
+
+        public void PlayGameOver()
+        {
+            if (source != null) source.pitch = 1.0f;
+            Play(gameOverClip);
+        }
 
         // ── Internals ─────────────────────────────────────────
         private void UpdateMusicState()

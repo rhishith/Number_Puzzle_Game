@@ -47,8 +47,11 @@ namespace SlideAndMatch
         private Button sfxToggleBtn;
         private GameObject howToPlayModal;
         private Sprite cachedButtonSprite;
+        private TMP_FontAsset cachedRegularFont;
+        private TMP_FontAsset cachedBoldFont;
 
         public static bool IsAdActive { get; private set; }
+        public static bool IsSplashActive { get; private set; }
 
         private float nextNetworkCheckTime = 0f;
         private bool lastOnlineState = true;
@@ -77,6 +80,24 @@ namespace SlideAndMatch
             {
                 EnsureAdPanelsCreated();
             }
+
+            Canvas mainCanvas = null;
+            GameObject dynamicCanvasObj = GameObject.Find("GameCanvas");
+            if (dynamicCanvasObj != null)
+            {
+                mainCanvas = dynamicCanvasObj.GetComponent<Canvas>();
+            }
+            if (mainCanvas == null)
+            {
+                mainCanvas = FindAnyObjectByType<Canvas>();
+            }
+            Transform splashParent = mainCanvas != null ? mainCanvas.transform : transform;
+
+            IsSplashActive = true;
+            GameSplashScreen.Create(splashParent, () =>
+            {
+                IsSplashActive = false;
+            });
 
             // Try to resolve rect references if still null (for custom inspector UIs)
             if (scoreBoxRect == null && scoreText != null && scoreText.transform.parent != null)
@@ -326,7 +347,7 @@ namespace SlideAndMatch
             Button settingsBtn = CreateBtn(safeAreaObj.transform, "SettingsBtn", "",
                 new Vector2(1f, 1f), new Vector2(-100, -100), new Vector2(80, 80),
                 Color.white);
-            Sprite settingsSprite = LoadSpriteFromFile("_My Files/Images/settings.png");
+            Sprite settingsSprite = LoadSpriteFromResources("settings");
             if (settingsSprite != null)
             {
                 settingsBtn.GetComponent<Image>().sprite = settingsSprite;
@@ -705,6 +726,31 @@ namespace SlideAndMatch
             rt.sizeDelta = size;
 
             var tmp = obj.AddComponent<TextMeshProUGUI>();
+
+            // Apply Roboto Font
+            if (style == FontStyles.Bold)
+            {
+                if (cachedBoldFont == null)
+                {
+                    cachedBoldFont = Resources.Load<TMP_FontAsset>("Roboto_Condensed-Bold SDF");
+                }
+                if (cachedBoldFont != null)
+                {
+                    tmp.font = cachedBoldFont;
+                }
+            }
+            else
+            {
+                if (cachedRegularFont == null)
+                {
+                    cachedRegularFont = Resources.Load<TMP_FontAsset>("Roboto_Condensed-Regular SDF");
+                }
+                if (cachedRegularFont != null)
+                {
+                    tmp.font = cachedRegularFont;
+                }
+            }
+
             tmp.text      = text;
             tmp.fontSize  = fontSize;
             tmp.color     = color;
@@ -747,7 +793,7 @@ namespace SlideAndMatch
             Image img = obj.AddComponent<Image>();
             if (cachedButtonSprite == null)
             {
-                cachedButtonSprite = LoadSpriteFromFile("_My Files/Images/Button.png", true);
+                cachedButtonSprite = LoadSpriteFromResources("Button", "minus_0", new Vector4(60f, 60f, 60f, 60f));
             }
             if (cachedButtonSprite != null)
             {
@@ -1072,44 +1118,40 @@ namespace SlideAndMatch
             UpdateUndoButtonState();
         }
 
-        private Sprite LoadSpriteFromFile(string relativePath, bool isButton = false)
+        private Sprite LoadSpriteFromResources(string resourcePath, string subSpriteName = null, Vector4? customBorder = null)
         {
-            string fullPath = System.IO.Path.Combine(Application.dataPath, relativePath);
-            if (System.IO.Path.DirectorySeparatorChar == '\\')
+            Sprite baseSprite = null;
+            if (!string.IsNullOrEmpty(subSpriteName))
             {
-                fullPath = fullPath.Replace('/', '\\');
-            }
-            if (System.IO.File.Exists(fullPath))
-            {
-                byte[] data = System.IO.File.ReadAllBytes(fullPath);
-                Texture2D tex = new Texture2D(2, 2);
-                if (tex.LoadImage(data))
+                Sprite[] sprites = Resources.LoadAll<Sprite>(resourcePath);
+                foreach (var s in sprites)
                 {
-                    if (isButton)
+                    if (s.name == subSpriteName)
                     {
-                        // The sub-sprite is located at x: 0, y: 165, width: 512, height: 182
-                        float rx = 0f;
-                        float ry = 165f;
-                        float rw = 512f;
-                        float rh = 182f;
-
-                        // Scale based on loaded texture size (in case it is different from 512x512)
-                        float scaleX = (float)tex.width / 512f;
-                        float scaleY = (float)tex.height / 512f;
-
-                        Rect rect = new Rect(rx * scaleX, ry * scaleY, rw * scaleX, rh * scaleY);
-                        // Add 9-slicing borders: left: 60, bottom: 60, right: 60, top: 60
-                        Vector4 border = new Vector4(60f * scaleX, 60f * scaleY, 60f * scaleX, 60f * scaleY);
-
-                        return Sprite.Create(tex, rect, new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect, border);
-                    }
-                    else
-                    {
-                        return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f));
+                        baseSprite = s;
+                        break;
                     }
                 }
             }
-            return null;
+            else
+            {
+                baseSprite = Resources.Load<Sprite>(resourcePath);
+            }
+
+            if (baseSprite != null && customBorder.HasValue)
+            {
+                return Sprite.Create(
+                    baseSprite.texture,
+                    baseSprite.rect,
+                    new Vector2(0.5f, 0.5f),
+                    baseSprite.pixelsPerUnit,
+                    0,
+                    SpriteMeshType.FullRect,
+                    customBorder.Value
+                );
+            }
+
+            return baseSprite;
         }
 
         #endregion

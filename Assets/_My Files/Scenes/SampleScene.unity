@@ -536,6 +536,8 @@ MonoBehaviour:
   bestScoreText: {fileID: 0}
   gameOverPanel: {fileID: 0}
   winPanel: {fileID: 0}
+  settingsPanel: {fileID: 0}
+  menuPanel: {fileID: 0}
   newGameButton: {fileID: 0}
   undoButton: {fileID: 0}
   retryButton: {fileID: 0}
@@ -547,6 +549,7 @@ MonoBehaviour:
   adPlayPanel: {fileID: 0}
   adCountdownText: {fileID: 0}
   adCloseButton: {fileID: 0}
+  progressBarFillRect: {fileID: 0}
 --- !u!114 &1508816399
 MonoBehaviour:
   m_ObjectHideFlags: 0
