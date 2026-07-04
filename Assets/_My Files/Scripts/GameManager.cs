@@ -105,6 +105,14 @@ namespace SlideAndMatch
             OnGameStarted?.Invoke();
         }
 
+        public void ResetBestScore()
+        {
+            BestScore = 0;
+            PlayerPrefs.SetInt("BestScore2048", 0);
+            PlayerPrefs.Save();
+            OnScoreChanged?.Invoke(Score, BestScore);
+        }
+
         public int GetCell(int x, int y) => grid[x, y];
         public void SetCell(int x, int y, int value) => grid[x, y] = value;
 

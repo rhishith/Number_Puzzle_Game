@@ -22,6 +22,8 @@ namespace SlideAndMatch
         [Header("Panels")]
         [SerializeField] private GameObject gameOverPanel;
         [SerializeField] private GameObject winPanel;
+        [SerializeField] private GameObject settingsPanel;
+        [SerializeField] private GameObject menuPanel;
 
         [Header("Buttons")]
         [SerializeField] private Button newGameButton;
@@ -37,6 +39,14 @@ namespace SlideAndMatch
         [SerializeField] private GameObject adPlayPanel;
         [SerializeField] private TextMeshProUGUI adCountdownText;
         [SerializeField] private Button adCloseButton;
+
+        [Header("Premium UI References")]
+        [SerializeField] private RectTransform progressBarFillRect;
+        private RectTransform autoProgressBarFill;
+        private Button musicToggleBtn;
+        private Button sfxToggleBtn;
+        private GameObject howToPlayModal;
+        private Sprite cachedButtonSprite;
 
         public static bool IsAdActive { get; private set; }
 
@@ -155,6 +165,7 @@ namespace SlideAndMatch
                 displayedBest = best;
                 if (scoreText != null) scoreText.text = score.ToString();
                 if (bestScoreText != null) bestScoreText.text = best.ToString();
+                UpdateProgressBar(score);
                 return;
             }
 
@@ -201,6 +212,18 @@ namespace SlideAndMatch
 
             lastScore = score;
             lastBest = best;
+            UpdateProgressBar(score);
+        }
+
+        private void UpdateProgressBar(int score)
+        {
+            RectTransform fill = progressBarFillRect != null ? progressBarFillRect : autoProgressBarFill;
+            if (fill != null)
+            {
+                float percentage = Mathf.Clamp01((float)score / 10000f);
+                fill.anchorMax = new Vector2(percentage, 1f);
+                fill.offsetMax = Vector2.zero;
+            }
         }
 
         private void ShowGameOver()
@@ -237,9 +260,26 @@ namespace SlideAndMatch
                 es = esObj.AddComponent<EventSystem>();
             }
 
-            if (es.GetComponent<StandaloneInputModule>() == null)
+            Type newModuleType = Type.GetType("UnityEngine.InputSystem.UI.InputSystemUIInputModule, Unity.InputSystem");
+            if (newModuleType != null)
             {
-                es.gameObject.AddComponent<StandaloneInputModule>();
+                var oldModule = es.GetComponent<StandaloneInputModule>();
+                if (oldModule != null)
+                {
+                    DestroyImmediate(oldModule);
+                }
+
+                if (es.GetComponent(newModuleType) == null)
+                {
+                    es.gameObject.AddComponent(newModuleType);
+                }
+            }
+            else
+            {
+                if (es.GetComponent<StandaloneInputModule>() == null)
+                {
+                    es.gameObject.AddComponent<StandaloneInputModule>();
+                }
             }
         }
 
@@ -266,69 +306,259 @@ namespace SlideAndMatch
 
             canvasObj.AddComponent<GraphicRaycaster>();
 
-            // ── Title ──────────────────────────────────────────
-            CreateLabel(canvasObj.transform, "TitleText", "2048", 80,
-                new Vector2(0.5f, 1f), new Vector2(0, -100), new Vector2(500, 120),
-                HexColor("#c4b5fd"), FontStyles.Bold);
+            // ── SafeAreaPanel ──────────────────────────────────
+            GameObject safeAreaObj = new GameObject("SafeAreaPanel");
+            safeAreaObj.transform.SetParent(canvasObj.transform, false);
+            RectTransform safeAreaRt = safeAreaObj.AddComponent<RectTransform>();
+            safeAreaRt.anchorMin = Vector2.zero;
+            safeAreaRt.anchorMax = Vector2.one;
+            safeAreaRt.offsetMin = Vector2.zero;
+            safeAreaRt.offsetMax = Vector2.zero;
+            safeAreaObj.AddComponent<SafeAreaHandler>();
+
+            // ── Top App Bar ────────────────────────────────────
+            // Title
+            CreateLabel(safeAreaObj.transform, "TitleText", "2048", 80,
+                new Vector2(0.5f, 1f), new Vector2(0, -100), new Vector2(400, 120),
+                HexColor("#ddb7ff"), FontStyles.Bold);
+
+            // Settings Button
+            Button settingsBtn = CreateBtn(safeAreaObj.transform, "SettingsBtn", "",
+                new Vector2(1f, 1f), new Vector2(-100, -100), new Vector2(80, 80),
+                Color.white);
+            Sprite settingsSprite = LoadSpriteFromFile("_My Files/Images/settings.png");
+            if (settingsSprite != null)
+            {
+                settingsBtn.GetComponent<Image>().sprite = settingsSprite;
+            }
+            var label = settingsBtn.transform.Find("Label");
+            if (label != null) label.gameObject.SetActive(false);
+            settingsBtn.onClick.AddListener(() => ShowSettingsPanel());
 
             // ── Score boxes ────────────────────────────────────
-            // Score
-            GameObject scoreBox = CreateBox(canvasObj.transform, "ScoreBox",
-                new Vector2(0.5f, 1f), new Vector2(-150, -240), new Vector2(250, 110),
-                HexColor("#1e1e24"));
+            // Score Box
+            GameObject scoreBox = CreateBox(safeAreaObj.transform, "ScoreBox",
+                new Vector2(0.5f, 1f), new Vector2(-260, -260), new Vector2(440, 140),
+                HexColor("#171f33"));
             scoreBoxRect = scoreBox.GetComponent<RectTransform>();
 
             CreateLabel(scoreBox.transform, "ScoreLabel", "SCORE", 26,
-                new Vector2(0.5f, 1f), new Vector2(0, -10), new Vector2(220, 36),
+                new Vector2(0.5f, 0.5f), new Vector2(0, 30), new Vector2(400, 30),
                 HexColor("#94a3b8"), FontStyles.Normal);
 
             scoreText = CreateLabel(scoreBox.transform, "ScoreValue", "0", 48,
-                new Vector2(0.5f, 1f), new Vector2(0, -58), new Vector2(220, 60),
-                Color.white, FontStyles.Bold);
+                new Vector2(0.5f, 0.5f), new Vector2(0, -25), new Vector2(400, 60),
+                HexColor("#ddb7ff"), FontStyles.Bold);
 
-            // Best
-            GameObject bestBox = CreateBox(canvasObj.transform, "BestBox",
-                new Vector2(0.5f, 1f), new Vector2(150, -240), new Vector2(250, 110),
-                HexColor("#1e1e24"));
+            // Best Box
+            GameObject bestBox = CreateBox(safeAreaObj.transform, "BestBox",
+                new Vector2(0.5f, 1f), new Vector2(260, -260), new Vector2(440, 140),
+                HexColor("#171f33"));
             bestBoxRect = bestBox.GetComponent<RectTransform>();
 
             CreateLabel(bestBox.transform, "BestLabel", "BEST", 26,
-                new Vector2(0.5f, 1f), new Vector2(0, -10), new Vector2(220, 36),
+                new Vector2(0.5f, 0.5f), new Vector2(0, 30), new Vector2(400, 30),
                 HexColor("#94a3b8"), FontStyles.Normal);
 
             bestScoreText = CreateLabel(bestBox.transform, "BestValue", "0", 48,
-                new Vector2(0.5f, 1f), new Vector2(0, -58), new Vector2(220, 60),
+                new Vector2(0.5f, 0.5f), new Vector2(0, -25), new Vector2(400, 60),
                 Color.white, FontStyles.Bold);
 
-            // ── Buttons ────────────────────────────────────────
-            newGameButton = CreateBtn(canvasObj.transform, "NewGameBtn", "NEW GAME",
-                new Vector2(0.5f, 0f), new Vector2(-140, 120), new Vector2(240, 72),
-                HexColor("#8b5cf6"));
+            // ── Progress Bar ───────────────────────────────────
+            GameObject progressBg = CreateBox(safeAreaObj.transform, "ProgressBarBg",
+                new Vector2(0.5f, 1f), new Vector2(0, -370), new Vector2(960, 16),
+                HexColor("#171f33"));
+            GameObject progressFill = CreateBox(progressBg.transform, "ProgressBarFill",
+                new Vector2(0f, 0.5f), Vector2.zero, new Vector2(0, 16),
+                HexColor("#b76dff"));
+            autoProgressBarFill = progressFill.GetComponent<RectTransform>();
+            autoProgressBarFill.anchorMin = new Vector2(0f, 0f);
+            autoProgressBarFill.anchorMax = new Vector2(0f, 1f);
+            autoProgressBarFill.offsetMin = Vector2.zero;
+            autoProgressBarFill.offsetMax = Vector2.zero;
 
-            undoButton = CreateBtn(canvasObj.transform, "UndoBtn", "UNDO",
-                new Vector2(0.5f, 0f), new Vector2(140, 120), new Vector2(240, 72),
-                HexColor("#334155"));
+            // ── Action Buttons ─────────────────────────────────
+            newGameButton = CreateBtn(safeAreaObj.transform, "NewGameBtn", "NEW GAME",
+                new Vector2(0.5f, 0f), new Vector2(-260, 150), new Vector2(450, 110),
+                HexColor("#b76dff"));
+
+            undoButton = CreateBtn(safeAreaObj.transform, "UndoBtn", "UNDO",
+                new Vector2(0.5f, 0f), new Vector2(260, 150), new Vector2(450, 110),
+                HexColor("#3e495d"));
 
             // ── Game Over Panel ────────────────────────────────
-            gameOverPanel = CreateOverlay(canvasObj.transform, "GameOverPanel",
+            gameOverPanel = CreateOverlay(safeAreaObj.transform, "GameOverPanel",
                 "GAME OVER", HexColor("#ef4444"));
 
             retryButton = CreateBtn(gameOverPanel.transform, "RetryBtn", "TRY AGAIN",
-                new Vector2(0.5f, 0.42f), Vector2.zero, new Vector2(320, 72),
+                new Vector2(0.5f, 0.42f), Vector2.zero, new Vector2(340, 80),
                 HexColor("#ef4444"));
 
             // ── Win Panel ──────────────────────────────────────
-            winPanel = CreateOverlay(canvasObj.transform, "WinPanel",
-                "YOU WIN!", HexColor("#8b5cf6"));
+            winPanel = CreateOverlay(safeAreaObj.transform, "WinPanel",
+                "YOU WIN!", HexColor("#b76dff"));
             keepPlayingButton = CreateBtn(winPanel.transform, "KeepPlayingBtn", "KEEP PLAYING",
-                new Vector2(0.5f, 0.42f), new Vector2(0, 20), new Vector2(340, 72),
-                HexColor("#8b5cf6"));
+                new Vector2(0.5f, 0.42f), new Vector2(0, 30), new Vector2(360, 80),
+                HexColor("#b76dff"));
 
             winNewGameButton = CreateBtn(winPanel.transform, "WinNewGameBtn", "NEW GAME",
-                new Vector2(0.5f, 0.42f), new Vector2(0, -70), new Vector2(340, 72),
-                HexColor("#334155"));
+                new Vector2(0.5f, 0.42f), new Vector2(0, -70), new Vector2(360, 80),
+                HexColor("#3e495d"));
 
-            CreateAdPanels(canvasObj.transform);
+            // ── Custom Overlays (Settings & Menu) ──────────────
+            CreateSettingsPanel(safeAreaObj.transform);
+
+            CreateAdPanels(safeAreaObj.transform);
+        }
+
+        private void CreateSettingsPanel(Transform parent)
+        {
+            if (settingsPanel != null) return;
+
+            settingsPanel = CreateOverlay(parent, "SettingsPanel", "", Color.clear);
+            settingsPanel.GetComponent<Image>().color = new Color(0.04f, 0.04f, 0.06f, 0.94f);
+
+            GameObject container = CreateBox(settingsPanel.transform, "SettingsContainer",
+                new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(900, 1000), HexColor("#171f33"));
+
+            CreateLabel(container.transform, "SettingsTitle", "SETTINGS", 56,
+                new Vector2(0.5f, 1f), new Vector2(0, -80), new Vector2(800, 80),
+                HexColor("#b76dff"), FontStyles.Bold);
+
+            // Music Toggle Btn
+            musicToggleBtn = CreateBtn(container.transform, "MusicToggleBtn", "MUSIC: ON",
+                new Vector2(0.5f, 0.5f), new Vector2(0, 200), new Vector2(700, 110),
+                HexColor("#3e495d"));
+            musicToggleBtn.onClick.AddListener(() => ToggleMusic());
+            UpdateMusicBtnLabel();
+
+            // SFX Toggle Btn
+            sfxToggleBtn = CreateBtn(container.transform, "SfxToggleBtn", "SFX: ON",
+                new Vector2(0.5f, 0.5f), new Vector2(0, 70), new Vector2(700, 110),
+                HexColor("#3e495d"));
+            sfxToggleBtn.onClick.AddListener(() => ToggleSfx());
+            UpdateSfxBtnLabel();
+
+            // How To Play Btn
+            Button tutorialBtn = CreateBtn(container.transform, "TutorialBtn", "HOW TO PLAY",
+                new Vector2(0.5f, 0.5f), new Vector2(0, -60), new Vector2(700, 110),
+                HexColor("#3e495d"));
+            tutorialBtn.onClick.AddListener(() => ShowHowToPlay());
+
+            // Reset High Score Btn
+            Button resetBtn = CreateBtn(container.transform, "ResetBtn", "RESET BEST SCORE",
+                new Vector2(0.5f, 0.5f), new Vector2(0, -190), new Vector2(700, 110),
+                HexColor("#ef4444"));
+            resetBtn.onClick.AddListener(() => ResetBestScoreClick());
+
+            // Close Btn
+            Button closeBtn = CreateBtn(container.transform, "SettingsCloseBtn", "CLOSE",
+                new Vector2(0.5f, 0f), new Vector2(0, 80), new Vector2(400, 90),
+                HexColor("#3e495d"));
+            closeBtn.onClick.AddListener(() => settingsPanel.SetActive(false));
+
+            // Create sub-modal for How to Play inside SettingsPanel
+            howToPlayModal = CreateOverlay(settingsPanel.transform, "HowToPlayModal", "", Color.clear);
+            howToPlayModal.GetComponent<Image>().color = new Color(0.02f, 0.03f, 0.05f, 0.98f);
+            
+            GameObject htContainer = CreateBox(howToPlayModal.transform, "HowToPlayContainer",
+                new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(850, 900), HexColor("#222a3d"));
+
+            CreateLabel(htContainer.transform, "HTTitle", "HOW TO PLAY", 48,
+                new Vector2(0.5f, 1f), new Vector2(0, -80), new Vector2(750, 80),
+                HexColor("#ddb7ff"), FontStyles.Bold);
+
+            string rules = "Slide tiles in any direction (swiping on screen or using Arrow/WASD keys).\n\n" +
+                           "When two tiles of the same value touch, they merge into a single tile with double the value!\n\n" +
+                           "Combine tiles to reach the ultimate 2048 tile!\n\n" +
+                           "Keep playing to set a new High Score!";
+
+            var ruleLabel = CreateLabel(htContainer.transform, "HTText", rules, 30,
+                new Vector2(0.5f, 0.5f), new Vector2(0, 20), new Vector2(750, 500),
+                Color.white, FontStyles.Normal);
+            ruleLabel.textWrappingMode = TextWrappingModes.Normal;
+            ruleLabel.alignment = TextAlignmentOptions.Center;
+
+            Button htCloseBtn = CreateBtn(htContainer.transform, "HTCloseBtn", "UNDERSTOOD",
+                new Vector2(0.5f, 0f), new Vector2(0, 60), new Vector2(500, 90),
+                HexColor("#b76dff"));
+            htCloseBtn.onClick.AddListener(() => howToPlayModal.SetActive(false));
+            howToPlayModal.SetActive(false);
+        }
+
+        private void ShowSettingsPanel()
+        {
+            if (settingsPanel != null)
+            {
+                settingsPanel.SetActive(true);
+                UpdateMusicBtnLabel();
+                UpdateSfxBtnLabel();
+            }
+        }
+
+        private void ToggleMusic()
+        {
+            if (AudioManager.Instance != null)
+            {
+                AudioManager.Instance.MusicMuted = !AudioManager.Instance.MusicMuted;
+                UpdateMusicBtnLabel();
+            }
+        }
+
+        private void UpdateMusicBtnLabel()
+        {
+            if (musicToggleBtn != null)
+            {
+                var labelTmp = musicToggleBtn.transform.Find("Label")?.GetComponent<TextMeshProUGUI>();
+                if (labelTmp != null)
+                {
+                    bool isMuted = AudioManager.Instance != null && AudioManager.Instance.MusicMuted;
+                    labelTmp.text = isMuted ? "MUSIC: OFF" : "MUSIC: ON";
+                }
+            }
+        }
+
+        private void ToggleSfx()
+        {
+            if (AudioManager.Instance != null)
+            {
+                AudioManager.Instance.SfxMuted = !AudioManager.Instance.SfxMuted;
+                UpdateSfxBtnLabel();
+                if (!AudioManager.Instance.SfxMuted)
+                {
+                    AudioManager.Instance.PlayMerge();
+                }
+            }
+        }
+
+        private void UpdateSfxBtnLabel()
+        {
+            if (sfxToggleBtn != null)
+            {
+                var labelTmp = sfxToggleBtn.transform.Find("Label")?.GetComponent<TextMeshProUGUI>();
+                if (labelTmp != null)
+                {
+                    bool isMuted = AudioManager.Instance != null && AudioManager.Instance.SfxMuted;
+                    labelTmp.text = isMuted ? "SFX: OFF" : "SFX: ON";
+                }
+            }
+        }
+
+        private void ResetBestScoreClick()
+        {
+            if (GameManager.Instance != null)
+            {
+                GameManager.Instance.ResetBestScore();
+                SpawnCanvasFloatingText(bestBoxRect, "Score Reset!", HexColor("#ef4444"));
+            }
+        }
+
+        private void ShowHowToPlay()
+        {
+            if (howToPlayModal != null)
+            {
+                howToPlayModal.SetActive(true);
+            }
         }
 
         private void EnsureAdPanelsCreated()
@@ -356,9 +586,10 @@ namespace SlideAndMatch
                     new Vector2(0.5f, 1f), new Vector2(0, -80), new Vector2(700, 80),
                     HexColor("#c4b5fd"), FontStyles.Bold);
 
-                CreateLabel(container.transform, "PromptDesc", "Watch a short video ad to undo your last move and keep playing!", 32,
+                var promptDesc = CreateLabel(container.transform, "PromptDesc", "Watch a short video ad to undo your last move and keep playing!", 32,
                     new Vector2(0.5f, 0.5f), new Vector2(0, 20), new Vector2(700, 200),
-                    HexColor("#94a3b8"), FontStyles.Normal);
+                    HexColor("#e2e8f0"), FontStyles.Normal);
+                promptDesc.textWrappingMode = TextWrappingModes.Normal;
 
                 Button watchBtn = CreateBtn(container.transform, "WatchAdBtn", "WATCH AD",
                     new Vector2(0.5f, 0f), new Vector2(-180, 100), new Vector2(300, 80),
@@ -391,7 +622,7 @@ namespace SlideAndMatch
                 
                 GameObject appIcon = CreateBox(adContent.transform, "AppIcon",
                     new Vector2(0.5f, 1f), new Vector2(0, -150), new Vector2(180, 180), HexColor("#8b5cf6"));
-                CreateLabel(appIcon.transform, "IconText", "🧩", 80,
+                CreateLabel(appIcon.transform, "IconText", "GAME", 36,
                     Vector2.zero, Vector2.zero, Vector2.zero, Color.white, FontStyles.Bold)
                     .rectTransform.anchorMax = Vector2.one;
                 var iconTextRt = appIcon.transform.Find("IconText").GetComponent<RectTransform>();
@@ -405,15 +636,16 @@ namespace SlideAndMatch
                     new Vector2(0.5f, 1f), new Vector2(0, -320), new Vector2(800, 70),
                     Color.white, FontStyles.Bold);
 
-                CreateLabel(adContent.transform, "AppStars", "⭐⭐⭐⭐⭐  4.9 (1.2M Reviews)", 26,
+                CreateLabel(adContent.transform, "AppStars", "RATING: 4.9 / 5.0 (1.2M Reviews)", 26,
                     new Vector2(0.5f, 1f), new Vector2(0, -390), new Vector2(800, 50),
                     HexColor("#fbbf24"), FontStyles.Normal);
 
                 GameObject screenshot = CreateBox(adContent.transform, "AdScreenshot",
                     new Vector2(0.5f, 0.5f), new Vector2(0, -60), new Vector2(760, 420), HexColor("#2d2d3a"));
-                CreateLabel(screenshot.transform, "ScreenshotText", "Slide and match numbers to win!", 28,
+                var scrText = CreateLabel(screenshot.transform, "ScreenshotText", "Slide and match numbers to win!", 28,
                     new Vector2(0.5f, 0f), new Vector2(0, 40), new Vector2(700, 60),
-                    HexColor("#94a3b8"), FontStyles.Italic);
+                    HexColor("#e2e8f0"), FontStyles.Italic);
+                scrText.textWrappingMode = TextWrappingModes.Normal;
 
                 GameObject miniGrid = CreateBox(screenshot.transform, "MiniGrid",
                     new Vector2(0.5f, 0.5f), new Vector2(0, 40), new Vector2(240, 240), HexColor("#1a1a24"));
@@ -439,9 +671,10 @@ namespace SlideAndMatch
                     }
                 }
 
-                CreateLabel(adContent.transform, "AppDesc", "Challenge your brain with the most addicting slide and match game ever created! Smooth controls, 3D graphics, and hours of fun.", 28,
+                var appDescLabel = CreateLabel(adContent.transform, "AppDesc", "Challenge your brain with the most addicting slide and match game ever created! Smooth controls, 3D graphics, and hours of fun.", 28,
                     new Vector2(0.5f, 0f), new Vector2(0, 200), new Vector2(800, 160),
-                    HexColor("#94a3b8"), FontStyles.Normal);
+                    HexColor("#e2e8f0"), FontStyles.Normal);
+                appDescLabel.textWrappingMode = TextWrappingModes.Normal;
 
                 Button installBtn = CreateBtn(adContent.transform, "InstallBtn", "INSTALL NOW",
                     new Vector2(0.5f, 0f), new Vector2(0, 60), new Vector2(600, 90),
@@ -477,6 +710,8 @@ namespace SlideAndMatch
             tmp.color     = color;
             tmp.alignment = TextAlignmentOptions.Center;
             tmp.fontStyle = style;
+            tmp.textWrappingMode = TextWrappingModes.NoWrap;
+            tmp.overflowMode = TextOverflowModes.Overflow;
 
             return tmp;
         }
@@ -510,16 +745,28 @@ namespace SlideAndMatch
             rt.sizeDelta = size;
 
             Image img = obj.AddComponent<Image>();
+            if (cachedButtonSprite == null)
+            {
+                cachedButtonSprite = LoadSpriteFromFile("_My Files/Images/Button.png", true);
+            }
+            if (cachedButtonSprite != null)
+            {
+                img.sprite = cachedButtonSprite;
+                img.type = Image.Type.Sliced;
+            }
             img.color = bgColor;
 
             Button btn = obj.AddComponent<Button>();
             ColorBlock cb = btn.colors;
-            cb.normalColor      = Color.white;
-            cb.highlightedColor = new Color(1.15f, 1.15f, 1.15f, 1f);
-            cb.pressedColor     = new Color(0.85f, 0.85f, 0.85f, 1f);
-            cb.selectedColor    = Color.white;
-            cb.disabledColor    = new Color(1f, 1f, 1f, 0.35f);
+            cb.normalColor      = new Color(0.85f, 0.85f, 0.85f, 1f);
+            cb.highlightedColor = Color.white;
+            cb.pressedColor     = new Color(0.60f, 0.60f, 0.60f, 1f);
+            cb.selectedColor    = new Color(0.85f, 0.85f, 0.85f, 1f);
+            cb.disabledColor    = new Color(0.85f, 0.85f, 0.85f, 0.35f);
+            cb.fadeDuration     = 0.08f;
             btn.colors = cb;
+
+            obj.AddComponent<ButtonHoverHandler>();
 
             // Stretched label
             CreateLabel(obj.transform, "Label", label, 28,
@@ -671,6 +918,15 @@ namespace SlideAndMatch
 
         private Action onMockAdClosedCallback;
 
+        private bool AreAdsEnabled()
+        {
+            if (AdManager.Instance != null)
+            {
+                return AdManager.Instance.adsEnabled;
+            }
+            return PlayerPrefs.GetInt("MockAdsEnabled", 1) == 1;
+        }
+
         private void OnUndoClicked()
         {
             var gm = GameManager.Instance;
@@ -679,7 +935,7 @@ namespace SlideAndMatch
             var gb = FindAnyObjectByType<GameBoard>();
             if (gb != null && gb.IsAnimating) return;
 
-            bool adsAreEnabled = AdManager.Instance == null || AdManager.Instance.adsEnabled;
+            bool adsAreEnabled = AreAdsEnabled();
 
             if (adsAreEnabled)
             {
@@ -740,7 +996,7 @@ namespace SlideAndMatch
         {
             if (undoButton != null && GameManager.Instance != null)
             {
-                bool adsAreEnabled = AdManager.Instance == null || AdManager.Instance.adsEnabled;
+                bool adsAreEnabled = AreAdsEnabled();
                 if (adsAreEnabled)
                 {
                     bool isOnline = Application.internetReachability != NetworkReachability.NotReachable;
@@ -816,6 +1072,115 @@ namespace SlideAndMatch
             UpdateUndoButtonState();
         }
 
+        private Sprite LoadSpriteFromFile(string relativePath, bool isButton = false)
+        {
+            string fullPath = System.IO.Path.Combine(Application.dataPath, relativePath);
+            if (System.IO.Path.DirectorySeparatorChar == '\\')
+            {
+                fullPath = fullPath.Replace('/', '\\');
+            }
+            if (System.IO.File.Exists(fullPath))
+            {
+                byte[] data = System.IO.File.ReadAllBytes(fullPath);
+                Texture2D tex = new Texture2D(2, 2);
+                if (tex.LoadImage(data))
+                {
+                    if (isButton)
+                    {
+                        // The sub-sprite is located at x: 0, y: 165, width: 512, height: 182
+                        float rx = 0f;
+                        float ry = 165f;
+                        float rw = 512f;
+                        float rh = 182f;
+
+                        // Scale based on loaded texture size (in case it is different from 512x512)
+                        float scaleX = (float)tex.width / 512f;
+                        float scaleY = (float)tex.height / 512f;
+
+                        Rect rect = new Rect(rx * scaleX, ry * scaleY, rw * scaleX, rh * scaleY);
+                        // Add 9-slicing borders: left: 60, bottom: 60, right: 60, top: 60
+                        Vector4 border = new Vector4(60f * scaleX, 60f * scaleY, 60f * scaleX, 60f * scaleY);
+
+                        return Sprite.Create(tex, rect, new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect, border);
+                    }
+                    else
+                    {
+                        return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f));
+                    }
+                }
+            }
+            return null;
+        }
+
         #endregion
+    }
+
+    public class ButtonHoverHandler : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerDownHandler, IPointerUpHandler
+    {
+        private Vector3 originalScale = Vector3.one;
+        private float hoverScale = 1.05f;
+        private float pressScale = 0.95f;
+        private float animationDuration = 0.1f;
+        private Coroutine scaleCoroutine;
+
+        void Awake()
+        {
+            originalScale = transform.localScale;
+        }
+
+        public void OnPointerEnter(PointerEventData eventData)
+        {
+            StartScaleAnimation(originalScale * hoverScale);
+        }
+
+        public void OnPointerExit(PointerEventData eventData)
+        {
+            StartScaleAnimation(originalScale);
+        }
+
+        public void OnPointerDown(PointerEventData eventData)
+        {
+            StartScaleAnimation(originalScale * pressScale);
+        }
+
+        public void OnPointerUp(PointerEventData eventData)
+        {
+            Vector3 target = eventData.dragging || !RectTransformUtility.RectangleContainsScreenPoint((RectTransform)transform, eventData.position, eventData.pressEventCamera) 
+                ? originalScale 
+                : originalScale * hoverScale;
+            StartScaleAnimation(target);
+        }
+
+        private void StartScaleAnimation(Vector3 targetScale)
+        {
+            if (gameObject.activeInHierarchy)
+            {
+                if (scaleCoroutine != null) StopCoroutine(scaleCoroutine);
+                scaleCoroutine = StartCoroutine(AnimateScale(targetScale));
+            }
+            else
+            {
+                transform.localScale = targetScale;
+            }
+        }
+
+        private IEnumerator AnimateScale(Vector3 targetScale)
+        {
+            Vector3 startScale = transform.localScale;
+            float elapsed = 0f;
+            while (elapsed < animationDuration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                transform.localScale = Vector3.Lerp(startScale, targetScale, elapsed / animationDuration);
+                yield return null;
+            }
+            transform.localScale = targetScale;
+        }
+
+        void OnDisable()
+        {
+            if (scaleCoroutine != null) StopCoroutine(scaleCoroutine);
+            transform.localScale = originalScale;
+        }
     }
 }

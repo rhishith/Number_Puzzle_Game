@@ -39,6 +39,9 @@ namespace SlideAndMatch
         // ───────────────────────────────────────────────────────
         void Start()
         {
+            ColorUtility.TryParseHtmlString("#171f33", out boardColor);
+            ColorUtility.TryParseHtmlString("#2d3449", out cellColor);
+
             originalBoardPos = transform.position;
             totalCellSize = cellSize + cellSpacing;
             float halfBoard = (totalCellSize * 4f - cellSpacing) / 2f;
@@ -124,7 +127,8 @@ namespace SlideAndMatch
             cam.orthographic     = true;
             cam.orthographicSize = 5.5f;
             cam.clearFlags       = CameraClearFlags.SolidColor;
-            cam.backgroundColor  = new Color(0.04f, 0.04f, 0.06f, 1f);
+            ColorUtility.TryParseHtmlString("#0b1326", out Color camBg);
+            cam.backgroundColor  = camBg;
             cam.transform.position = new Vector3(0f, 0f, -10f);
         }
 
@@ -566,6 +570,24 @@ namespace SlideAndMatch
             cachedSquare = Sprite.Create(
                 tex, new Rect(0, 0, 4, 4), new Vector2(0.5f, 0.5f), 4f);
             return cachedSquare;
+        }
+
+        public bool IsPositionInsideBoard(Vector2 screenPosition)
+        {
+            Camera cam = Camera.main;
+            if (cam == null) return false;
+
+            Vector3 worldPos = cam.ScreenToWorldPoint(new Vector3(screenPosition.x, screenPosition.y, cam.nearClipPlane));
+            
+            float boardSize = totalCellSize * 4f - cellSpacing + 0.4f;
+            Vector3 boardCenter = transform.position;
+
+            float minX = boardCenter.x - boardSize / 2f;
+            float maxX = boardCenter.x + boardSize / 2f;
+            float minY = boardCenter.y - boardSize / 2f;
+            float maxY = boardCenter.y + boardSize / 2f;
+
+            return worldPos.x >= minX && worldPos.x <= maxX && worldPos.y >= minY && worldPos.y <= maxY;
         }
     }
 }

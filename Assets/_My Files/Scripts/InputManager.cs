@@ -1,10 +1,11 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace SlideAndMatch
 {
     /// <summary>
     /// Detects keyboard (Arrow / WASD) and touch-swipe input using
-    /// Unity's legacy Input system, then forwards the direction to
+    /// Unity's new Input System, then forwards the direction to
     /// GameBoard.HandleSwipe(). Auto-finds GameBoard if no reference is assigned.
     /// </summary>
     public class InputManager : MonoBehaviour
@@ -25,61 +26,73 @@ namespace SlideAndMatch
 
         void Update()
         {
-            // if (Input.GetKeyDown(KeyCode.Escape))
-            // {
-            //     Screen.fullScreen = false;
-            // }
-
             if (gameBoard == null || gameBoard.IsAnimating || UIManager.IsAdActive) return;
 
             HandleKeyboard();
             HandlePointerInput();
         }
 
-        // ── Keyboard (legacy Input) ───────────────────────
+        // ── Keyboard (New Input System) ───────────────────
         private void HandleKeyboard()
         {
-            if (Input.GetKeyDown(KeyCode.LeftArrow) || Input.GetKeyDown(KeyCode.A))
+            var keyboard = Keyboard.current;
+            if (keyboard == null) return;
+
+            if (keyboard.leftArrowKey.wasPressedThisFrame || keyboard.aKey.wasPressedThisFrame)
                 gameBoard.HandleSwipe(Direction.Left);
-            else if (Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.D))
+            else if (keyboard.rightArrowKey.wasPressedThisFrame || keyboard.dKey.wasPressedThisFrame)
                 gameBoard.HandleSwipe(Direction.Right);
-            else if (Input.GetKeyDown(KeyCode.UpArrow) || Input.GetKeyDown(KeyCode.W))
+            else if (keyboard.upArrowKey.wasPressedThisFrame || keyboard.wKey.wasPressedThisFrame)
                 gameBoard.HandleSwipe(Direction.Up);
-            else if (Input.GetKeyDown(KeyCode.DownArrow) || Input.GetKeyDown(KeyCode.S))
+            else if (keyboard.downArrowKey.wasPressedThisFrame || keyboard.sKey.wasPressedThisFrame)
                 gameBoard.HandleSwipe(Direction.Down);
         }
 
-        // ── Touch + Mouse (legacy Input) ──────────────────
+        // ── Touch + Mouse (New Input System) ───────────────
         private void HandlePointerInput()
         {
             // Prefer touch over mouse (mobile devices)
-            if (Input.touchCount > 0)
+            var touchscreen = Touchscreen.current;
+            if (touchscreen != null && touchscreen.touches.Count > 0)
             {
-                Touch touch = Input.GetTouch(0);
+                var touch = touchscreen.touches[0];
+                var phase = touch.phase.ReadValue();
+                var pos = touch.position.ReadValue();
 
-                if (touch.phase == TouchPhase.Began)
+                if (phase == UnityEngine.InputSystem.TouchPhase.Began)
                 {
-                    pointerStart = touch.position;
-                    isSwiping = true;
+                    if (gameBoard != null && gameBoard.IsPositionInsideBoard(pos))
+                    {
+                        pointerStart = pos;
+                        isSwiping = true;
+                    }
                 }
-                else if (touch.phase == TouchPhase.Ended && isSwiping)
+                else if (phase == UnityEngine.InputSystem.TouchPhase.Ended && isSwiping)
                 {
                     isSwiping = false;
-                    ProcessSwipe(pointerStart, touch.position);
+                    ProcessSwipe(pointerStart, pos);
                 }
                 return;
             }
 
             // Mouse fallback (editor / desktop)
-            if (Input.GetMouseButtonDown(0))
+            var mouse = Mouse.current;
+            if (mouse != null)
             {
-                pointerStart = Input.mousePosition;
-                isSwiping = true;
-            }
-            else if (Input.GetMouseButtonUp(0) && isSwiping)
-            {
-                isSwiping = false;
-                ProcessSwipe(pointerStart, Input.mousePosition);
+                var mousePos = mouse.position.ReadValue();
+                if (mouse.leftButton.wasPressedThisFrame)
+                {
+                    if (gameBoard != null && gameBoard.IsPositionInsideBoard(mousePos))
+                    {
+                        pointerStart = mousePos;
+                        isSwiping = true;
+                    }
+                }
+                else if (mouse.leftButton.wasReleasedThisFrame && isSwiping)
+                {
+                    isSwiping = false;
+                    ProcessSwipe(pointerStart, mousePos);
+                }
             }
         }
 
