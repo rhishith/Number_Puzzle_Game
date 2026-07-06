@@ -545,6 +545,7 @@ MonoBehaviour:
   winNewGameButton: {fileID: 0}
   scoreBoxRect: {fileID: 0}
   bestBoxRect: {fileID: 0}
+  showUndoButton: 0
   adPromptPanel: {fileID: 0}
   adPlayPanel: {fileID: 0}
   adCountdownText: {fileID: 0}
