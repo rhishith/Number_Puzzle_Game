@@ -33,6 +33,7 @@ namespace SlideAndMatch
         [SerializeField] private Button winNewGameButton;
         [SerializeField] private RectTransform scoreBoxRect;
         [SerializeField] private RectTransform bestBoxRect;
+        [SerializeField] private bool showUndoButton = true;
 
         [Header("Ads Settings")]
         [SerializeField] private GameObject adPromptPanel;
@@ -65,6 +66,10 @@ namespace SlideAndMatch
         private Coroutine scoreTickCoroutine;
         private Coroutine scorePunchCoroutine;
         private Coroutine bestPunchCoroutine;
+
+        private Vector2 originalNewGamePos;
+        private Vector2 originalNewGameSize;
+        private bool hasSavedOriginalLayout = false;
 
         // ───────────────────────────────────────────────────────
         // Lifecycle
@@ -130,6 +135,17 @@ namespace SlideAndMatch
                 keepPlayingButton.onClick.AddListener(() => { gm.ContinuePlaying(); winPanel?.SetActive(false); });
             if (winNewGameButton != null)
                 winNewGameButton.onClick.AddListener(() => gm.StartNewGame());
+
+            if (newGameButton != null)
+            {
+                RectTransform newGameRect = newGameButton.GetComponent<RectTransform>();
+                if (newGameRect != null)
+                {
+                    originalNewGamePos = newGameRect.anchoredPosition;
+                    originalNewGameSize = newGameRect.sizeDelta;
+                    hasSavedOriginalLayout = true;
+                }
+            }
 
             HideOverlays();
             UpdateScore(gm.Score, gm.BestScore);
@@ -1040,7 +1056,41 @@ namespace SlideAndMatch
 
         private void UpdateUndoButtonState()
         {
-            if (undoButton != null && GameManager.Instance != null)
+            if (undoButton != null)
+            {
+                if (!showUndoButton)
+                {
+                    undoButton.gameObject.SetActive(false);
+                    if (newGameButton != null && hasSavedOriginalLayout)
+                    {
+                        RectTransform newGameRect = newGameButton.GetComponent<RectTransform>();
+                        if (newGameRect != null)
+                        {
+                            // If auto-created or using default layout positions (newGame X=-260, width=450), center it at regular size
+                            if (Mathf.Approximately(originalNewGamePos.x, -260f) && Mathf.Approximately(originalNewGameSize.x, 450f))
+                            {
+                                newGameRect.anchoredPosition = new Vector2(0f, originalNewGamePos.y);
+                                newGameRect.sizeDelta = originalNewGameSize;
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    undoButton.gameObject.SetActive(true);
+                    if (newGameButton != null && hasSavedOriginalLayout)
+                    {
+                        RectTransform newGameRect = newGameButton.GetComponent<RectTransform>();
+                        if (newGameRect != null)
+                        {
+                            newGameRect.anchoredPosition = originalNewGamePos;
+                            newGameRect.sizeDelta = originalNewGameSize;
+                        }
+                    }
+                }
+            }
+
+            if (undoButton != null && GameManager.Instance != null && showUndoButton)
             {
                 bool adsAreEnabled = AreAdsEnabled();
                 if (adsAreEnabled)
@@ -1054,6 +1104,16 @@ namespace SlideAndMatch
                 }
             }
         }
+
+#if UNITY_EDITOR
+        private void OnValidate()
+        {
+            if (Application.isPlaying)
+            {
+                UpdateUndoButtonState();
+            }
+        }
+#endif
 
         public void StartMockAdSequence(Action onComplete)
         {
