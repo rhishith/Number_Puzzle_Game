@@ -35,11 +35,11 @@ namespace SlideAndMatch
         [SerializeField] private RectTransform bestBoxRect;
         [SerializeField] private bool showUndoButton = true;
 
-        [Header("Ads Settings")]
-        [SerializeField] private GameObject adPromptPanel;
-        [SerializeField] private GameObject adPlayPanel;
-        [SerializeField] private TextMeshProUGUI adCountdownText;
-        [SerializeField] private Button adCloseButton;
+        // [Header("Ads Settings")]
+        // [SerializeField] private GameObject adPromptPanel;
+        // [SerializeField] private GameObject adPlayPanel;
+        // [SerializeField] private TextMeshProUGUI adCountdownText;
+        // [SerializeField] private Button adCloseButton;
 
         [Header("Premium UI References")]
         [SerializeField] private RectTransform progressBarFillRect;
@@ -83,7 +83,7 @@ namespace SlideAndMatch
             }
             else
             {
-                EnsureAdPanelsCreated();
+                // EnsureAdPanelsCreated();
             }
 
             Canvas mainCanvas = null;
@@ -278,8 +278,8 @@ namespace SlideAndMatch
         {
             gameOverPanel?.SetActive(false);
             winPanel?.SetActive(false);
-            if (adPromptPanel != null) adPromptPanel.SetActive(false);
-            if (adPlayPanel != null) adPlayPanel.SetActive(false);
+            // if (adPromptPanel != null) adPromptPanel.SetActive(false);
+            // if (adPlayPanel != null) adPlayPanel.SetActive(false);
             IsAdActive = false;
             UpdateUndoButtonState();
         }
@@ -445,7 +445,7 @@ namespace SlideAndMatch
             // ── Custom Overlays (Settings & Menu) ──────────────
             CreateSettingsPanel(safeAreaObj.transform);
 
-            CreateAdPanels(safeAreaObj.transform);
+            // CreateAdPanels(safeAreaObj.transform);
         }
 
         private void CreateSettingsPanel(Transform parent)
@@ -598,6 +598,7 @@ namespace SlideAndMatch
             }
         }
 
+        /*
         private void EnsureAdPanelsCreated()
         {
             Canvas canvas = GetComponentInParent<Canvas>();
@@ -725,6 +726,7 @@ namespace SlideAndMatch
                 adCloseButton.gameObject.SetActive(false);
             }
         }
+        */
 
         // ── Helpers ────────────────────────────────────────────
 
@@ -978,15 +980,19 @@ namespace SlideAndMatch
             Destroy(go);
         }
 
-        private Action onMockAdClosedCallback;
+        // private Action onMockAdClosedCallback;
 
         private bool AreAdsEnabled()
         {
+            // Ads are disabled for this build
+            return false;
+            /*
             if (AdManager.Instance != null)
             {
                 return AdManager.Instance.adsEnabled;
             }
             return PlayerPrefs.GetInt("MockAdsEnabled", 1) == 1;
+            */
         }
 
         private void OnUndoClicked()
@@ -997,6 +1003,10 @@ namespace SlideAndMatch
             var gb = FindAnyObjectByType<GameBoard>();
             if (gb != null && gb.IsAnimating) return;
 
+            // Directly undo since ads are disabled
+            gm.Undo();
+            UpdateUndoButtonState();
+            /*
             bool adsAreEnabled = AreAdsEnabled();
 
             if (adsAreEnabled)
@@ -1024,8 +1034,10 @@ namespace SlideAndMatch
                 gm.Undo();
                 UpdateUndoButtonState();
             }
+            */
         }
 
+        /*
         private void StartAdFlow()
         {
             if (adPromptPanel != null) adPromptPanel.SetActive(false);
@@ -1053,6 +1065,7 @@ namespace SlideAndMatch
                 });
             }
         }
+        */
 
         private void UpdateUndoButtonState()
         {
@@ -1092,6 +1105,8 @@ namespace SlideAndMatch
 
             if (undoButton != null && GameManager.Instance != null && showUndoButton)
             {
+                undoButton.interactable = GameManager.Instance.CanUndo && !IsAdActive;
+                /*
                 bool adsAreEnabled = AreAdsEnabled();
                 if (adsAreEnabled)
                 {
@@ -1102,6 +1117,7 @@ namespace SlideAndMatch
                 {
                     undoButton.interactable = GameManager.Instance.CanUndo && !IsAdActive;
                 }
+                */
             }
         }
 
@@ -1115,6 +1131,7 @@ namespace SlideAndMatch
         }
 #endif
 
+        /*
         public void StartMockAdSequence(Action onComplete)
         {
             StartCoroutine(PlayMockAdRoutine(onComplete));
@@ -1177,6 +1194,7 @@ namespace SlideAndMatch
 
             UpdateUndoButtonState();
         }
+        */
 
         private Sprite LoadSpriteFromResources(string resourcePath, string subSpriteName = null, Vector4? customBorder = null)
         {
