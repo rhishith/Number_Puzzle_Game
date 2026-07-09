@@ -119,17 +119,60 @@ namespace SlideAndMatch
         // Camera
         // ───────────────────────────────────────────────────────
 
+        private int lastWidth = 0;
+        private int lastHeight = 0;
+
+        void Update()
+        {
+            if (Screen.width != lastWidth || Screen.height != lastHeight)
+            {
+                AutoConfigureCamera();
+                lastWidth = Screen.width;
+                lastHeight = Screen.height;
+            }
+        }
+
         private void AutoConfigureCamera()
         {
             Camera cam = Camera.main;
             if (cam == null) return;
 
             cam.orthographic     = true;
-            cam.orthographicSize = 5.5f;
+
+            float aspect = (float)Screen.width / Screen.height;
+            float S_board = 5.2f; // Board size with margins
+
+            // Get canvas height to determine relative UI heights
+            float canvasHeight = 1920f;
+            Canvas canvas = FindAnyObjectByType<Canvas>();
+            if (canvas != null)
+            {
+                RectTransform canvasRt = canvas.GetComponent<RectTransform>();
+                if (canvasRt != null)
+                {
+                    canvasHeight = canvasRt.rect.height;
+                }
+            }
+            if (canvasHeight < 100f) canvasHeight = 1920f;
+
+            // Ratios of the top/bottom UI relative to the total Canvas height
+            float f_top = 400f / canvasHeight;     // top bar, score/best boxes, progress bar
+            float f_bottom = 240f / canvasHeight;  // bottom action buttons
+            float f_available = 1f - f_top - f_bottom;
+
+            // Calculate orthographic size to fit both width and vertical available region
+            float orthoForWidth = S_board / (2f * aspect);
+            float orthoForHeight = S_board / (2f * f_available);
+
+            cam.orthographicSize = Mathf.Max(orthoForWidth, orthoForHeight);
+
+            // Shift camera Y position to center the board inside the available region
+            float y_cam = cam.orthographicSize * (f_top - f_bottom);
+
             cam.clearFlags       = CameraClearFlags.SolidColor;
             ColorUtility.TryParseHtmlString("#0b1326", out Color camBg);
             cam.backgroundColor  = camBg;
-            cam.transform.position = new Vector3(0f, 0f, -10f);
+            cam.transform.position = new Vector3(0f, y_cam, -10f);
         }
 
         // ───────────────────────────────────────────────────────

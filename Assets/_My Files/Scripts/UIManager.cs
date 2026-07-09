@@ -69,6 +69,10 @@ namespace SlideAndMatch
 
         private Vector2 originalNewGamePos;
         private Vector2 originalNewGameSize;
+        private Vector2 originalNewGameAnchorMin;
+        private Vector2 originalNewGameAnchorMax;
+        private Vector2 originalNewGameOffsetMin;
+        private Vector2 originalNewGameOffsetMax;
         private bool hasSavedOriginalLayout = false;
 
         // ───────────────────────────────────────────────────────
@@ -141,6 +145,10 @@ namespace SlideAndMatch
                 RectTransform newGameRect = newGameButton.GetComponent<RectTransform>();
                 if (newGameRect != null)
                 {
+                    originalNewGameAnchorMin = newGameRect.anchorMin;
+                    originalNewGameAnchorMax = newGameRect.anchorMax;
+                    originalNewGameOffsetMin = newGameRect.offsetMin;
+                    originalNewGameOffsetMax = newGameRect.offsetMax;
                     originalNewGamePos = newGameRect.anchoredPosition;
                     originalNewGameSize = newGameRect.sizeDelta;
                     hasSavedOriginalLayout = true;
@@ -330,7 +338,8 @@ namespace SlideAndMatch
         {
             // ── Canvas ─────────────────────────────────────────
             GameObject canvasObj = new GameObject("GameCanvas");
-            canvasObj.transform.SetParent(transform, false);
+            // Keep GameCanvas as a root object so its RectTransform size correctly matches the screen resolution.
+            // canvasObj.transform.SetParent(transform, false);
 
             Canvas canvas = canvasObj.AddComponent<Canvas>();
             canvas.renderMode  = RenderMode.ScreenSpaceOverlay;
@@ -375,9 +384,13 @@ namespace SlideAndMatch
             // ── Score boxes ────────────────────────────────────
             // Score Box
             GameObject scoreBox = CreateBox(safeAreaObj.transform, "ScoreBox",
-                new Vector2(0.5f, 1f), new Vector2(-260, -260), new Vector2(440, 140),
+                new Vector2(0f, 1f), Vector2.zero, Vector2.zero,
                 HexColor("#171f33"));
             scoreBoxRect = scoreBox.GetComponent<RectTransform>();
+            scoreBoxRect.anchorMin = new Vector2(0.05f, 1f);
+            scoreBoxRect.anchorMax = new Vector2(0.47f, 1f);
+            scoreBoxRect.anchoredPosition = new Vector2(0f, -260f);
+            scoreBoxRect.sizeDelta = new Vector2(0f, 140f);
 
             CreateLabel(scoreBox.transform, "ScoreLabel", "SCORE", 26,
                 new Vector2(0.5f, 0.5f), new Vector2(0, 30), new Vector2(400, 30),
@@ -389,9 +402,13 @@ namespace SlideAndMatch
 
             // Best Box
             GameObject bestBox = CreateBox(safeAreaObj.transform, "BestBox",
-                new Vector2(0.5f, 1f), new Vector2(260, -260), new Vector2(440, 140),
+                new Vector2(0f, 1f), Vector2.zero, Vector2.zero,
                 HexColor("#171f33"));
             bestBoxRect = bestBox.GetComponent<RectTransform>();
+            bestBoxRect.anchorMin = new Vector2(0.53f, 1f);
+            bestBoxRect.anchorMax = new Vector2(0.95f, 1f);
+            bestBoxRect.anchoredPosition = new Vector2(0f, -260f);
+            bestBoxRect.sizeDelta = new Vector2(0f, 140f);
 
             CreateLabel(bestBox.transform, "BestLabel", "BEST", 26,
                 new Vector2(0.5f, 0.5f), new Vector2(0, 30), new Vector2(400, 30),
@@ -403,8 +420,14 @@ namespace SlideAndMatch
 
             // ── Progress Bar ───────────────────────────────────
             GameObject progressBg = CreateBox(safeAreaObj.transform, "ProgressBarBg",
-                new Vector2(0.5f, 1f), new Vector2(0, -370), new Vector2(960, 16),
+                new Vector2(0f, 1f), Vector2.zero, Vector2.zero,
                 HexColor("#171f33"));
+            RectTransform progressBgRt = progressBg.GetComponent<RectTransform>();
+            progressBgRt.anchorMin = new Vector2(0.05f, 1f);
+            progressBgRt.anchorMax = new Vector2(0.95f, 1f);
+            progressBgRt.anchoredPosition = new Vector2(0f, -370f);
+            progressBgRt.sizeDelta = new Vector2(0f, 16f);
+
             GameObject progressFill = CreateBox(progressBg.transform, "ProgressBarFill",
                 new Vector2(0f, 0.5f), Vector2.zero, new Vector2(0, 16),
                 HexColor("#b76dff"));
@@ -416,12 +439,22 @@ namespace SlideAndMatch
 
             // ── Action Buttons ─────────────────────────────────
             newGameButton = CreateBtn(safeAreaObj.transform, "NewGameBtn", "NEW GAME",
-                new Vector2(0.5f, 0f), new Vector2(-260, 150), new Vector2(450, 110),
+                new Vector2(0f, 0f), Vector2.zero, Vector2.zero,
                 HexColor("#b76dff"));
+            RectTransform newGameRt = newGameButton.GetComponent<RectTransform>();
+            newGameRt.anchorMin = new Vector2(0.05f, 0f);
+            newGameRt.anchorMax = new Vector2(0.47f, 0f);
+            newGameRt.anchoredPosition = new Vector2(0f, 150f);
+            newGameRt.sizeDelta = new Vector2(0f, 110f);
 
             undoButton = CreateBtn(safeAreaObj.transform, "UndoBtn", "UNDO",
-                new Vector2(0.5f, 0f), new Vector2(260, 150), new Vector2(450, 110),
+                new Vector2(0f, 0f), Vector2.zero, Vector2.zero,
                 HexColor("#3e495d"));
+            RectTransform undoRt = undoButton.GetComponent<RectTransform>();
+            undoRt.anchorMin = new Vector2(0.53f, 0f);
+            undoRt.anchorMax = new Vector2(0.95f, 0f);
+            undoRt.anchoredPosition = new Vector2(0f, 150f);
+            undoRt.sizeDelta = new Vector2(0f, 110f);
 
             // ── Game Over Panel ────────────────────────────────
             gameOverPanel = CreateOverlay(safeAreaObj.transform, "GameOverPanel",
@@ -456,42 +489,77 @@ namespace SlideAndMatch
             settingsPanel.GetComponent<Image>().color = new Color(0.04f, 0.04f, 0.06f, 0.94f);
 
             GameObject container = CreateBox(settingsPanel.transform, "SettingsContainer",
-                new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(900, 1000), HexColor("#171f33"));
+                new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero, HexColor("#171f33"));
+            RectTransform containerRt = container.GetComponent<RectTransform>();
+            containerRt.anchorMin = new Vector2(0.05f, 0.15f);
+            containerRt.anchorMax = new Vector2(0.95f, 0.85f);
+            containerRt.offsetMin = Vector2.zero;
+            containerRt.offsetMax = Vector2.zero;
 
             CreateLabel(container.transform, "SettingsTitle", "SETTINGS", 56,
-                new Vector2(0.5f, 1f), new Vector2(0, -80), new Vector2(800, 80),
+                new Vector2(0.05f, 1f), Vector2.zero, Vector2.zero,
                 HexColor("#b76dff"), FontStyles.Bold);
+            var titleRt = container.transform.Find("SettingsTitle").GetComponent<RectTransform>();
+            titleRt.anchorMin = new Vector2(0.05f, 1f);
+            titleRt.anchorMax = new Vector2(0.95f, 1f);
+            titleRt.anchoredPosition = new Vector2(0f, -120f);
+            titleRt.sizeDelta = new Vector2(0f, 80f);
 
             // Music Toggle Btn
             musicToggleBtn = CreateBtn(container.transform, "MusicToggleBtn", "MUSIC: ON",
-                new Vector2(0.5f, 0.5f), new Vector2(0, 200), new Vector2(700, 110),
+                new Vector2(0f, 0.5f), Vector2.zero, Vector2.zero,
                 HexColor("#3e495d"));
+            RectTransform musicRt = musicToggleBtn.GetComponent<RectTransform>();
+            musicRt.anchorMin = new Vector2(0.05f, 0.5f);
+            musicRt.anchorMax = new Vector2(0.95f, 0.5f);
+            musicRt.anchoredPosition = new Vector2(0f, 200f);
+            musicRt.sizeDelta = new Vector2(0f, 110f);
             musicToggleBtn.onClick.AddListener(() => ToggleMusic());
             UpdateMusicBtnLabel();
 
             // SFX Toggle Btn
             sfxToggleBtn = CreateBtn(container.transform, "SfxToggleBtn", "SFX: ON",
-                new Vector2(0.5f, 0.5f), new Vector2(0, 70), new Vector2(700, 110),
+                new Vector2(0f, 0.5f), Vector2.zero, Vector2.zero,
                 HexColor("#3e495d"));
+            RectTransform sfxRt = sfxToggleBtn.GetComponent<RectTransform>();
+            sfxRt.anchorMin = new Vector2(0.05f, 0.5f);
+            sfxRt.anchorMax = new Vector2(0.95f, 0.5f);
+            sfxRt.anchoredPosition = new Vector2(0f, 70f);
+            sfxRt.sizeDelta = new Vector2(0f, 110f);
             sfxToggleBtn.onClick.AddListener(() => ToggleSfx());
             UpdateSfxBtnLabel();
 
             // How To Play Btn
             Button tutorialBtn = CreateBtn(container.transform, "TutorialBtn", "HOW TO PLAY",
-                new Vector2(0.5f, 0.5f), new Vector2(0, -60), new Vector2(700, 110),
+                new Vector2(0f, 0.5f), Vector2.zero, Vector2.zero,
                 HexColor("#3e495d"));
+            RectTransform tutorialRt = tutorialBtn.GetComponent<RectTransform>();
+            tutorialRt.anchorMin = new Vector2(0.05f, 0.5f);
+            tutorialRt.anchorMax = new Vector2(0.95f, 0.5f);
+            tutorialRt.anchoredPosition = new Vector2(0f, -60f);
+            tutorialRt.sizeDelta = new Vector2(0f, 110f);
             tutorialBtn.onClick.AddListener(() => ShowHowToPlay());
 
             // Reset High Score Btn
             Button resetBtn = CreateBtn(container.transform, "ResetBtn", "RESET BEST SCORE",
-                new Vector2(0.5f, 0.5f), new Vector2(0, -190), new Vector2(700, 110),
+                new Vector2(0f, 0.5f), Vector2.zero, Vector2.zero,
                 HexColor("#ef4444"));
+            RectTransform resetRt = resetBtn.GetComponent<RectTransform>();
+            resetRt.anchorMin = new Vector2(0.05f, 0.5f);
+            resetRt.anchorMax = new Vector2(0.95f, 0.5f);
+            resetRt.anchoredPosition = new Vector2(0f, -190f);
+            resetRt.sizeDelta = new Vector2(0f, 110f);
             resetBtn.onClick.AddListener(() => ResetBestScoreClick());
 
             // Close Btn
             Button closeBtn = CreateBtn(container.transform, "SettingsCloseBtn", "CLOSE",
-                new Vector2(0.5f, 0f), new Vector2(0, 80), new Vector2(400, 90),
+                new Vector2(0f, 0f), Vector2.zero, Vector2.zero,
                 HexColor("#3e495d"));
+            RectTransform closeRt = closeBtn.GetComponent<RectTransform>();
+            closeRt.anchorMin = new Vector2(0.3f, 0f);
+            closeRt.anchorMax = new Vector2(0.7f, 0f);
+            closeRt.anchoredPosition = new Vector2(0f, 85f);
+            closeRt.sizeDelta = new Vector2(0f, 90f);
             closeBtn.onClick.AddListener(() => settingsPanel.SetActive(false));
 
             // Create sub-modal for How to Play inside SettingsPanel
@@ -499,11 +567,21 @@ namespace SlideAndMatch
             howToPlayModal.GetComponent<Image>().color = new Color(0.02f, 0.03f, 0.05f, 0.98f);
             
             GameObject htContainer = CreateBox(howToPlayModal.transform, "HowToPlayContainer",
-                new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(850, 900), HexColor("#222a3d"));
+                new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero, HexColor("#222a3d"));
+            RectTransform htContainerRt = htContainer.GetComponent<RectTransform>();
+            htContainerRt.anchorMin = new Vector2(0.05f, 0.15f);
+            htContainerRt.anchorMax = new Vector2(0.95f, 0.85f);
+            htContainerRt.offsetMin = Vector2.zero;
+            htContainerRt.offsetMax = Vector2.zero;
 
             CreateLabel(htContainer.transform, "HTTitle", "HOW TO PLAY", 48,
-                new Vector2(0.5f, 1f), new Vector2(0, -80), new Vector2(750, 80),
+                new Vector2(0f, 1f), Vector2.zero, Vector2.zero,
                 HexColor("#ddb7ff"), FontStyles.Bold);
+            var htTitleRt = htContainer.transform.Find("HTTitle").GetComponent<RectTransform>();
+            htTitleRt.anchorMin = new Vector2(0.05f, 1f);
+            htTitleRt.anchorMax = new Vector2(0.95f, 1f);
+            htTitleRt.anchoredPosition = new Vector2(0f, -120f);
+            htTitleRt.sizeDelta = new Vector2(0f, 80f);
 
             string rules = "Slide tiles in any direction (swiping on screen or using Arrow/WASD keys).\n\n" +
                            "When two tiles of the same value touch, they merge into a single tile with double the value!\n\n" +
@@ -511,14 +589,24 @@ namespace SlideAndMatch
                            "Keep playing to set a new High Score!";
 
             var ruleLabel = CreateLabel(htContainer.transform, "HTText", rules, 30,
-                new Vector2(0.5f, 0.5f), new Vector2(0, 20), new Vector2(750, 500),
+                new Vector2(0f, 0.5f), Vector2.zero, Vector2.zero,
                 Color.white, FontStyles.Normal);
+            RectTransform ruleLabelRt = ruleLabel.GetComponent<RectTransform>();
+            ruleLabelRt.anchorMin = new Vector2(0.05f, 0.5f);
+            ruleLabelRt.anchorMax = new Vector2(0.95f, 0.5f);
+            ruleLabelRt.anchoredPosition = new Vector2(0f, 20f);
+            ruleLabelRt.sizeDelta = new Vector2(0f, 500f);
             ruleLabel.textWrappingMode = TextWrappingModes.Normal;
             ruleLabel.alignment = TextAlignmentOptions.Center;
 
             Button htCloseBtn = CreateBtn(htContainer.transform, "HTCloseBtn", "UNDERSTOOD",
-                new Vector2(0.5f, 0f), new Vector2(0, 60), new Vector2(500, 90),
+                new Vector2(0f, 0f), Vector2.zero, Vector2.zero,
                 HexColor("#b76dff"));
+            RectTransform htCloseRt = htCloseBtn.GetComponent<RectTransform>();
+            htCloseRt.anchorMin = new Vector2(0.25f, 0f);
+            htCloseRt.anchorMax = new Vector2(0.75f, 0f);
+            htCloseRt.anchoredPosition = new Vector2(0f, 85f);
+            htCloseRt.sizeDelta = new Vector2(0f, 90f);
             htCloseBtn.onClick.AddListener(() => howToPlayModal.SetActive(false));
             howToPlayModal.SetActive(false);
         }
@@ -1079,8 +1167,16 @@ namespace SlideAndMatch
                         RectTransform newGameRect = newGameButton.GetComponent<RectTransform>();
                         if (newGameRect != null)
                         {
-                            // If auto-created or using default layout positions (newGame X=-260, width=450), center it at regular size
-                            if (Mathf.Approximately(originalNewGamePos.x, -260f) && Mathf.Approximately(originalNewGameSize.x, 450f))
+                            // If using our responsive layout (anchorMin.x = 0.05f, anchorMax.x = 0.47f), make it stretch full width
+                            if (Mathf.Approximately(originalNewGameAnchorMin.x, 0.05f) && Mathf.Approximately(originalNewGameAnchorMax.x, 0.47f))
+                            {
+                                newGameRect.anchorMin = new Vector2(0.05f, originalNewGameAnchorMin.y);
+                                newGameRect.anchorMax = new Vector2(0.95f, originalNewGameAnchorMax.y);
+                                newGameRect.offsetMin = originalNewGameOffsetMin;
+                                newGameRect.offsetMax = originalNewGameOffsetMax;
+                            }
+                            // Otherwise, fall back to original centering logic
+                            else if (Mathf.Approximately(originalNewGamePos.x, -260f) && Mathf.Approximately(originalNewGameSize.x, 450f))
                             {
                                 newGameRect.anchoredPosition = new Vector2(0f, originalNewGamePos.y);
                                 newGameRect.sizeDelta = originalNewGameSize;
@@ -1096,8 +1192,17 @@ namespace SlideAndMatch
                         RectTransform newGameRect = newGameButton.GetComponent<RectTransform>();
                         if (newGameRect != null)
                         {
-                            newGameRect.anchoredPosition = originalNewGamePos;
-                            newGameRect.sizeDelta = originalNewGameSize;
+                            newGameRect.anchorMin = originalNewGameAnchorMin;
+                            newGameRect.anchorMax = originalNewGameAnchorMax;
+                            newGameRect.offsetMin = originalNewGameOffsetMin;
+                            newGameRect.offsetMax = originalNewGameOffsetMax;
+
+                            // Only restore position/size if not using responsive stretch layout
+                            if (!Mathf.Approximately(originalNewGameAnchorMin.x, 0.05f) || !Mathf.Approximately(originalNewGameAnchorMax.x, 0.47f))
+                            {
+                                newGameRect.anchoredPosition = originalNewGamePos;
+                                newGameRect.sizeDelta = originalNewGameSize;
+                            }
                         }
                     }
                 }
