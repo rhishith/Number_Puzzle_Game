@@ -92,12 +92,6 @@
       },
       "url": "https://packages.unity.com"
     },
-    "com.unity.build-report-inspector": {
-      "version": "file:D:/Packages/BuildReportInspector-master/com.unity.build-report-inspector",
-      "depth": 0,
-      "source": "local",
-      "dependencies": {}
-    },
     "com.unity.burst": {
       "version": "1.8.28",
       "depth": 2,
