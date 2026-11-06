@@ -162,7 +162,7 @@ namespace SlideAndMatch
 
             // Ratios of the top/bottom UI relative to the total Canvas height
             float f_top = 400f / canvasHeight;     // top bar, score/best boxes, progress bar
-            float f_bottom = 240f / canvasHeight;  // bottom action buttons
+            float f_bottom = 280f / canvasHeight;  // bottom action buttons
             float f_available = Mathf.Max(0.2f, 1f - f_top - f_bottom);
 
             // Calculate orthographic size to fit both width and vertical available region

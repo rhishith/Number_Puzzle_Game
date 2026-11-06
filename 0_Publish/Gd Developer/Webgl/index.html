@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>puzzle2048</title>
+    <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes">
+    <!-- GameDistribution SDK Setup -->
+    <script type="text/javascript">
+      window["GD_OPTIONS"] = {
+        "gameId": "a58153c976884bdf8024addbf5ad0edc",
+        "onEvent": function(event) {
+          switch (event.name) {
+            case "SDK_GAME_START":
+              // Advertisement is finished or skipped. Resume game logic & unmute
+              break;
+            case "SDK_GAME_PAUSE":
+              // Advertisement is about to display. Pause game logic & mute
+              break;
+          }
+        },
+      };
+
+      (function(d, s, id) {
+        var js, fjs = d.getElementsByTagName(s)[0];
+        if (d.getElementById(id)) return;
+        js = d.createElement(s);
+        js.id = id;
+        js.src = "https://html5.api.gamedistribution.com/main.min.js";
+        fjs.parentNode.insertBefore(js, fjs);
+      }(document, 'script', 'gamedistribution-jssdk'));
+    </script>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      html, body {
+        width: 100%;
+        height: 100%;
+        padding: 0;
+        margin: 0;
+        overflow: hidden;
+        background-color: #0b1326;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      #unity-container {
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        top: 0;
+        left: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #unity-canvas {
+        width: 100%;
+        height: 100%;
+        background-color: #0b1326;
+        display: block;
+      }
+      #loading-cover {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        background-color: #0b1326;
+        z-index: 10;
+      }
+      #loading-title {
+        color: #ddb7ff;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-size: 36px;
+        font-weight: bold;
+        margin-bottom: 24px;
+        letter-spacing: 2px;
+      }
+      #progress-bar-container {
+        width: 240px;
+        height: 10px;
+        background-color: #171f33;
+        border-radius: 5px;
+        overflow: hidden;
+      }
+      #progress-bar-fill {
+        width: 0%;
+        height: 100%;
+        background-color: #b76dff;
+        border-radius: 5px;
+        transition: width 0.2s ease;
+      }
+      #fullscreen-btn {
+        position: absolute;
+        bottom: 12px;
+        right: 12px;
+        width: 36px;
+        height: 36px;
+        cursor: pointer;
+        opacity: 0.6;
+        transition: opacity 0.2s;
+        z-index: 5;
+        background: rgba(23, 31, 51, 0.7);
+        border: 1px solid rgba(221, 183, 255, 0.3);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #fullscreen-btn:hover {
+        opacity: 1;
+        background: rgba(23, 31, 51, 0.95);
+      }
+      #fullscreen-btn svg {
+        width: 18px;
+        height: 18px;
+        fill: #ddb7ff;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="unity-container">
+      <canvas id="unity-canvas" tabindex="-1"></canvas>
+      <div id="loading-cover">
+        <div id="loading-title">puzzle2048</div>
+        <div id="progress-bar-container">
+          <div id="progress-bar-fill"></div>
+        </div>
+      </div>
+      <div id="fullscreen-btn" title="Toggle Fullscreen">
+        <svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+      </div>
+    </div>
+    <script src="Build/Webgl.loader.js"></script>
+    <script>
+      const canvas = document.querySelector("#unity-canvas");
+      const loadingCover = document.querySelector("#loading-cover");
+      const progressBarFill = document.querySelector("#progress-bar-fill");
+      const fullscreenBtn = document.querySelector("#fullscreen-btn");
+
+      const config = {
+        arguments: [],
+        dataUrl: "Build/Webgl.data",
+        frameworkUrl: "Build/Webgl.framework.js",
+        codeUrl: "Build/Webgl.wasm",
+        streamingAssetsUrl: "StreamingAssets",
+        companyName: "RK Studioz",
+        productName: "puzzle2048",
+        productVersion: "1.0.0",
+      };
+
+      createUnityInstance(canvas, config, (progress) => {
+        progressBarFill.style.width = (100 * progress) + "%";
+      }).then((unityInstance) => {
+        window.unityInstanceRef = unityInstance;
+        loadingCover.style.display = "none";
+        fullscreenBtn.onclick = () => {
+          unityInstance.SetFullscreen(1);
+        };
+
+        // Trigger GameDistribution ad
+        function showGameDistAd() {
+          if (typeof gdsdk !== "undefined" && typeof gdsdk.showAd === "function") {
+            gdsdk.showAd().catch((err) => console.log("GD Ad:", err));
+          }
+        }
+
+        // Try show on game ready
+        setTimeout(showGameDistAd, 500);
+
+        // Also trigger on first user click/tap (required by some mobile browsers)
+        let clickedOnce = false;
+        function onFirstInteract() {
+          if (!clickedOnce) {
+            clickedOnce = true;
+            showGameDistAd();
+            window.removeEventListener("pointerdown", onFirstInteract);
+          }
+        }
+        window.addEventListener("pointerdown", onFirstInteract);
+      }).catch((message) => {
+        alert(message);
+      });
+    </script>
+  </body>
+</html>
+

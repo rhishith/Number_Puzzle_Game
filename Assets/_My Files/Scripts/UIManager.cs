@@ -50,6 +50,7 @@ namespace SlideAndMatch
         private Sprite cachedButtonSprite;
         private TMP_FontAsset cachedRegularFont;
         private TMP_FontAsset cachedBoldFont;
+        private TextMeshProUGUI controlsHintText;
 
         public static bool IsAdActive { get; private set; }
         public static bool IsSplashActive { get; private set; }
@@ -108,11 +109,7 @@ namespace SlideAndMatch
             }
             Transform splashParent = mainCanvas != null ? mainCanvas.transform : transform;
 
-            IsSplashActive = true;
-            GameSplashScreen.Create(splashParent, () =>
-            {
-                IsSplashActive = false;
-            });
+            IsSplashActive = false;
 
             // Try to resolve rect references if still null (for custom inspector UIs)
             if (scoreBoxRect == null && scoreText != null && scoreText.transform.parent != null)
@@ -252,6 +249,10 @@ namespace SlideAndMatch
             // Handle Score Increase
             if (scoreIncreased)
             {
+                if (controlsHintText != null)
+                {
+                    StartCoroutine(FadeOutControlsHint());
+                }
                 // Trigger score box punch
                 if (scorePunchCoroutine != null) StopCoroutine(scorePunchCoroutine);
                 scorePunchCoroutine = StartCoroutine(PunchScale(scoreBoxRect, 0.15f, 0.2f));
@@ -407,8 +408,8 @@ namespace SlideAndMatch
 
             // ── Top App Bar ────────────────────────────────────
             // Title
-            CreateLabel(contentObj.transform, "TitleText", "2048", 80,
-                new Vector2(0.5f, 1f), new Vector2(0, -100), new Vector2(400, 120),
+            CreateLabel(contentObj.transform, "TitleText", "SLIDE & MATCH", 52,
+                new Vector2(0.5f, 1f), new Vector2(0, -100), new Vector2(600, 120),
                 HexColor("#ddb7ff"), FontStyles.Bold);
 
             // Settings Button
@@ -498,6 +499,11 @@ namespace SlideAndMatch
             undoRt.anchorMax = new Vector2(0.95f, 0f);
             undoRt.anchoredPosition = new Vector2(0f, 150f);
             undoRt.sizeDelta = new Vector2(0f, 110f);
+
+            // ── Controls Hint ──────────────────────────────────
+            controlsHintText = CreateLabel(contentObj.transform, "ControlsHint", "Swipe or use WASD / Arrow Keys to move", 24,
+                new Vector2(0.5f, 0f), new Vector2(0f, 220f), new Vector2(700f, 40f),
+                HexColor("#94a3b8"), FontStyles.Normal);
 
             // ── Game Over Panel ────────────────────────────────
             gameOverPanel = CreateOverlay(safeAreaObj.transform, "GameOverPanel",
@@ -628,7 +634,7 @@ namespace SlideAndMatch
 
             string rules = "Slide tiles in any direction (swiping on screen or using Arrow/WASD keys).\n\n" +
                            "When two tiles of the same value touch, they merge into a single tile with double the value!\n\n" +
-                           "Combine tiles to reach the ultimate 2048 tile!\n\n" +
+                           "Combine tiles to reach higher value tiles!\n\n" +
                            "Keep playing to set a new High Score!";
 
             var ruleLabel = CreateLabel(htContainer.transform, "HTText", rules, 30,
@@ -1012,6 +1018,24 @@ namespace SlideAndMatch
         // ───────────────────────────────────────────────────────
         // UI Animation Helpers
         // ───────────────────────────────────────────────────────
+
+        private IEnumerator FadeOutControlsHint()
+        {
+            if (controlsHintText == null) yield break;
+            var text = controlsHintText;
+            controlsHintText = null;
+            Color initCol = text.color;
+            float elapsed = 0f;
+            float dur = 0.5f;
+            while (elapsed < dur)
+            {
+                elapsed += Time.deltaTime;
+                float t = elapsed / dur;
+                text.color = new Color(initCol.r, initCol.g, initCol.b, Mathf.Lerp(initCol.a, 0f, t));
+                yield return null;
+            }
+            if (text != null) Destroy(text.gameObject);
+        }
 
         private IEnumerator PunchScale(RectTransform rect, float punchFactor, float duration)
         {

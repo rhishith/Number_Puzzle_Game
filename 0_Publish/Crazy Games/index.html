@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Slide and Match</title>
+    <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes">
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      html, body {
+        width: 100%;
+        height: 100%;
+        padding: 0;
+        margin: 0;
+        overflow: hidden;
+        background-color: #0b1326;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      #unity-container {
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        top: 0;
+        left: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #unity-canvas {
+        width: 100%;
+        height: 100%;
+        background-color: #0b1326;
+        display: block;
+      }
+      #loading-cover {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        background-color: #0b1326;
+        z-index: 10;
+      }
+      #loading-title {
+        color: #ddb7ff;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-size: 36px;
+        font-weight: bold;
+        margin-bottom: 24px;
+        letter-spacing: 2px;
+      }
+      #progress-bar-container {
+        width: 240px;
+        height: 10px;
+        background-color: #171f33;
+        border-radius: 5px;
+        overflow: hidden;
+      }
+      #progress-bar-fill {
+        width: 0%;
+        height: 100%;
+        background-color: #b76dff;
+        border-radius: 5px;
+        transition: width 0.2s ease;
+      }
+      </style>
+  </head>
+  <body>
+    <div id="unity-container">
+      <canvas id="unity-canvas" tabindex="-1"></canvas>
+      <div id="loading-cover">
+        <div id="loading-title">Slide and Match</div>
+        <div id="progress-bar-container">
+          <div id="progress-bar-fill"></div>
+        </div>
+      </div>
+      
+    </div>
+    <script src="Build/Crazy Games.loader.js"></script>
+    <script>
+      const canvas = document.querySelector("#unity-canvas");
+      const loadingCover = document.querySelector("#loading-cover");
+      const progressBarFill = document.querySelector("#progress-bar-fill");
+      
+      const config = {
+        arguments: [],
+        dataUrl: "Build/Crazy Games.data.br",
+        frameworkUrl: "Build/Crazy Games.framework.js.br",
+        codeUrl: "Build/Crazy Games.wasm.br",
+        streamingAssetsUrl: "StreamingAssets",
+        companyName: "RK Studioz",
+        productName: "Slide and Match",
+        productVersion: "1.0.0",
+      };
+
+      createUnityInstance(canvas, config, (progress) => {
+        progressBarFill.style.width = (100 * progress) + "%";
+      }).then((unityInstance) => {
+        loadingCover.style.display = "none";
+        
+      }).catch((message) => {
+        alert(message);
+      });
+    </script>
+  </body>
+</html>
+

@@ -108,9 +108,38 @@ namespace SlideAndMatch
         {
             if (!isSplashActive) return;
 
+            if (UnityEngine.InputSystem.Keyboard.current != null && UnityEngine.InputSystem.Keyboard.current.anyKey.wasPressedThisFrame)
+            {
+                SkipSplash();
+                return;
+            }
+            if (UnityEngine.InputSystem.Mouse.current != null && UnityEngine.InputSystem.Mouse.current.leftButton.wasPressedThisFrame)
+            {
+                SkipSplash();
+                return;
+            }
+            if (UnityEngine.InputSystem.Touchscreen.current != null && UnityEngine.InputSystem.Touchscreen.current.touches.Count > 0 && UnityEngine.InputSystem.Touchscreen.current.touches[0].phase.ReadValue() == UnityEngine.InputSystem.TouchPhase.Began)
+            {
+                SkipSplash();
+                return;
+            }
+
             UpdateStars();
             UpdateBursts();
             UpdateRipples();
+        }
+
+        public void SkipSplash()
+        {
+            if (!isSplashActive) return;
+            isSplashActive = false;
+            StopAllCoroutines();
+            if (onCompleteCallback != null)
+            {
+                onCompleteCallback.Invoke();
+                onCompleteCallback = null;
+            }
+            Destroy(gameObject);
         }
 
         private void GenerateTextures()
@@ -278,7 +307,27 @@ namespace SlideAndMatch
             brandingRt.anchorMin = new Vector2(0.5f, 0f); // anchor to bottom
             brandingRt.anchorMax = new Vector2(0.5f, 0f);
             brandingRt.sizeDelta = new Vector2(600, 80);
-            brandingRt.anchoredPosition = new Vector2(0, 100); // 100 pixels offset from bottom
+            brandingRt.anchoredPosition = new Vector2(0, 80);
+
+            // Skip Hint Text
+            GameObject skipObj = new GameObject("SkipPromptText");
+            skipObj.transform.SetParent(transform, false);
+            var skipText = skipObj.AddComponent<TextMeshProUGUI>();
+            if (regularFont != null) skipText.font = regularFont;
+            skipText.alignment = TextAlignmentOptions.Center;
+            skipText.fontSize = 24;
+            skipText.text = "Tap or press any key to skip";
+            skipText.color = HexColor("#94a3b8");
+            RectTransform skipRt = skipText.rectTransform;
+            skipRt.anchorMin = new Vector2(0.5f, 0f);
+            skipRt.anchorMax = new Vector2(0.5f, 0f);
+            skipRt.sizeDelta = new Vector2(600, 50);
+            skipRt.anchoredPosition = new Vector2(0, 140);
+
+            // Invisible full-screen button to skip on click/tap
+            Button bgBtn = backgroundImage.gameObject.AddComponent<Button>();
+            bgBtn.transition = Selectable.Transition.None;
+            bgBtn.onClick.AddListener(() => SkipSplash());
         }
 
         private void SpawnStars()
@@ -453,7 +502,7 @@ namespace SlideAndMatch
         private IEnumerator PlaySplashScreenTimeline()
         {
             // ───────────────────────────────────────────────────
-            // 0.0s - 0.8s: Centered "2" scales up and fades in
+            // 0.0s - 0.25s: Centered '2' scales up and fades in
             // ───────────────────────────────────────────────────
             centerNumberText.text = "2";
             Color neonViolet;
@@ -462,15 +511,13 @@ namespace SlideAndMatch
             centerNumberText.transform.localScale = Vector3.zero;
 
             float elapsed = 0f;
-            float duration = 0.4f;
+            float duration = 0.25f;
             while (elapsed < duration)
             {
                 elapsed += Time.deltaTime;
                 float t = elapsed / duration;
-                // Easing out elastic-like or smooth rise
                 float scale = Mathf.SmoothStep(0f, 1f, t);
                 centerNumberText.transform.localScale = Vector3.one * scale;
-                
                 Color c = centerNumberText.color;
                 c.a = t;
                 centerNumberText.color = c;
@@ -478,22 +525,15 @@ namespace SlideAndMatch
             }
             centerNumberText.transform.localScale = Vector3.one;
 
-            yield return new WaitForSeconds(0.05f);
+            yield return new WaitForSeconds(0.04f);
 
             // ───────────────────────────────────────────────────
-            // Merges Timeline: 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048
-            // Each merge takes about 0.35s total to keep the total timing around 5-6s.
+            // Merges Timeline: Snappy 4-step progression to 2048
             // ───────────────────────────────────────────────────
-            int[] values = { 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048 };
+            int[] values = { 16, 128, 1024, 2048 };
             string[] hexColors = {
-                "#ddb7ff", // 4 (Neon light purple)
-                "#cf9eff", // 8
                 "#bf82ff", // 16
-                "#b066ff", // 32
-                "#a14aff", // 64 (Deeper purple glow)
                 "#b25fff", // 128
-                "#c275ff", // 256
-                "#d28aff", // 512
                 "#e39fff", // 1024
                 "#ffffff"  // 2048 (Blinding Neon White)
             };
@@ -501,7 +541,7 @@ namespace SlideAndMatch
             for (int m = 0; m < values.Length; m++)
             {
                 int nextVal = values[m];
-                string prevText = (nextVal / 2).ToString();
+                string prevText = (nextVal == 16 ? "2" : (nextVal == 128 ? "16" : (nextVal == 1024 ? "128" : "1024")));
                 string nextText = nextVal.ToString();
 
                 Color targetColor;
@@ -520,95 +560,69 @@ namespace SlideAndMatch
                 fallText.text = prevText;
                 
                 Color colVal = targetColor;
-                colVal.a = 0.8f;
+                colVal.a = 0.85f;
                 fallText.color = colVal;
 
                 RectTransform fallRt = fallText.rectTransform;
                 fallRt.sizeDelta = centerNumberText.rectTransform.sizeDelta;
 
-                // Fall animation (0.0s to 0.14s)
+                // Fall animation (snappy 0.08s)
                 float fElapsed = 0f;
-                float fDuration = 0.14f;
-                Vector2 startPos = new Vector2(0, 800);
+                float fDuration = 0.08f;
+                Vector2 startPos = new Vector2(0, 600);
                 Vector2 targetPos = Vector2.zero;
 
                 while (fElapsed < fDuration)
                 {
                     fElapsed += Time.deltaTime;
                     float progress = fElapsed / fDuration;
-                    // cubic ease-in
                     float easeT = progress * progress * progress;
                     fallRt.anchoredPosition = Vector2.Lerp(startPos, targetPos, easeT);
-                    
-                    // Simple simulated vertical motion blur (stretch scale along Y, shrink along X)
-                    float stretchY = Mathf.Lerp(1.5f, 1f, progress);
-                    float shrinkX = Mathf.Lerp(0.7f, 1f, progress);
-                    fallRt.localScale = new Vector3(shrinkX, stretchY, 1f);
-
                     yield return null;
                 }
 
-                // Impact!
                 Destroy(fallObj);
 
-                // Morph center text value and color
                 centerNumberText.text = nextText;
                 centerNumberText.color = targetColor;
-
-                // Sfx play merge
                 AudioManager.Instance?.PlayMerge(nextVal);
 
-                // 1. Squash and stretch animation (0.10s)
+                // Squash animation (0.07s)
                 float sElapsed = 0f;
-                float sDuration = 0.10f;
+                float sDuration = 0.07f;
                 while (sElapsed < sDuration)
                 {
                     sElapsed += Time.deltaTime;
                     float t = sElapsed / sDuration;
-                    // Sin-wave squash and bounce back
-                    // On impact (t=0), squash: Y small, X wide.
-                    float xMultiplier = 1f + 0.35f * Mathf.Sin(t * Mathf.PI) * (1f - t);
-                    float yMultiplier = 1f - 0.25f * Mathf.Sin(t * Mathf.PI) * (1f - t);
+                    float xMultiplier = 1f + 0.3f * Mathf.Sin(t * Mathf.PI) * (1f - t);
+                    float yMultiplier = 1f - 0.2f * Mathf.Sin(t * Mathf.PI) * (1f - t);
                     centerNumberText.transform.localScale = new Vector3(xMultiplier, yMultiplier, 1f);
                     yield return null;
                 }
                 centerNumberText.transform.localScale = Vector3.one;
 
-                // 2. Spawn star burst particles
-                Color burstColor = targetColor;
-                burstColor.a = 0.85f;
-                SpawnMergeBurst(Vector2.zero, 12, burstColor);
-
-                // 3. Spawn expanding light ring ripple
-                Color ripColor = targetColor;
-                ripColor.a = 0.65f;
-                SpawnRipple(Vector2.zero, 0.2f, 2.5f, 0.20f, ripColor);
-
-                // 4. Flare ambient glow
+                // Particle bursts
+                SpawnMergeBurst(Vector2.zero, 10, targetColor);
+                SpawnRipple(Vector2.zero, 0.2f, 2.2f, 0.15f, targetColor);
                 StartCoroutine(PulseAmbientGlow(targetColor, m + 1));
 
-                // Small rest spacing before next number falls
-                yield return new WaitForSeconds(0.04f);
+                yield return new WaitForSeconds(0.02f);
             }
 
             // ───────────────────────────────────────────────────
-            // 2048 Formed! Final bloom and Circular wave reveal
+            // 2048 Formed!
             // ───────────────────────────────────────────────────
-            Color finalGoldColor = Color.white; // Shiny white-purple
-            SpawnRipple(Vector2.zero, 0.2f, 5f, 0.6f, finalGoldColor);
-            SpawnMergeBurst(Vector2.zero, 30, finalGoldColor);
+            Color finalWhite = Color.white;
+            SpawnRipple(Vector2.zero, 0.2f, 4.5f, 0.35f, finalWhite);
+            SpawnMergeBurst(Vector2.zero, 25, finalWhite);
+            StartCoroutine(PunchScaleFinal(1.35f, 0.2f));
 
-            // Punch scale of final logo
-            StartCoroutine(PunchScaleFinal(1.5f, 0.25f));
+            // Hold briefly (0.35s)
+            yield return new WaitForSeconds(0.35f);
 
-            // Hold completed 2048 logo for 0.8 seconds
-            yield return new WaitForSeconds(0.8f);
-
-            // ───────────────────────────────────────────────────
-            // Fadeout entire splash overlay over 0.4 seconds
-            // ───────────────────────────────────────────────────
+            // Fast fadeout (0.2s)
             float exitElapsed = 0f;
-            float exitDuration = 0.4f;
+            float exitDuration = 0.2f;
             while (exitElapsed < exitDuration)
             {
                 exitElapsed += Time.deltaTime;
@@ -618,11 +632,11 @@ namespace SlideAndMatch
             }
             mainCanvasGroup.alpha = 0f;
 
-            // Finish! Trigger gameplay reveal
             isSplashActive = false;
             if (onCompleteCallback != null)
             {
                 onCompleteCallback.Invoke();
+                onCompleteCallback = null;
             }
 
             Destroy(gameObject);
@@ -759,7 +773,27 @@ namespace SlideAndMatch
             brandingRt.anchorMin = new Vector2(0.5f, 0f); // anchor to bottom
             brandingRt.anchorMax = new Vector2(0.5f, 0f);
             brandingRt.sizeDelta = new Vector2(600, 80);
-            brandingRt.anchoredPosition = new Vector2(0, 100); // 100 pixels offset from bottom
+            brandingRt.anchoredPosition = new Vector2(0, 80);
+
+            // Skip Hint Text
+            GameObject skipObj = new GameObject("SkipPromptText");
+            skipObj.transform.SetParent(transform, false);
+            var skipText = skipObj.AddComponent<TextMeshProUGUI>();
+            if (regularFont != null) skipText.font = regularFont;
+            skipText.alignment = TextAlignmentOptions.Center;
+            skipText.fontSize = 24;
+            skipText.text = "Tap or press any key to skip";
+            skipText.color = HexColor("#94a3b8");
+            RectTransform skipRt = skipText.rectTransform;
+            skipRt.anchorMin = new Vector2(0.5f, 0f);
+            skipRt.anchorMax = new Vector2(0.5f, 0f);
+            skipRt.sizeDelta = new Vector2(600, 50);
+            skipRt.anchoredPosition = new Vector2(0, 140);
+
+            // Invisible full-screen button to skip on click/tap
+            Button bgBtn = backgroundImage.gameObject.AddComponent<Button>();
+            bgBtn.transition = Selectable.Transition.None;
+            bgBtn.onClick.AddListener(() => SkipSplash());
         }
 
         private static Color HexColor(string hex)
