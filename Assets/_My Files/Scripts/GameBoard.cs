@@ -139,26 +139,31 @@ namespace SlideAndMatch
 
             cam.orthographic     = true;
 
-            float aspect = (float)Screen.width / Screen.height;
+            float aspect = (float)Screen.width / Mathf.Max(1, Screen.height);
             float S_board = 5.2f; // Board size with margins
 
-            // Get canvas height to determine relative UI heights
-            float canvasHeight = 1920f;
+            // Force layout update if canvas exists to get accurate canvas height
             Canvas canvas = FindAnyObjectByType<Canvas>();
+            float canvasHeight = 1920f;
             if (canvas != null)
             {
+                Canvas.ForceUpdateCanvases();
                 RectTransform canvasRt = canvas.GetComponent<RectTransform>();
-                if (canvasRt != null)
+                if (canvasRt != null && canvasRt.rect.height > 100f)
                 {
                     canvasHeight = canvasRt.rect.height;
                 }
             }
-            if (canvasHeight < 100f) canvasHeight = 1920f;
+            if (canvasHeight < 100f)
+            {
+                float targetAspect = 1080f / 1920f;
+                canvasHeight = aspect > targetAspect ? 1920f : (1080f / Mathf.Max(0.1f, aspect));
+            }
 
             // Ratios of the top/bottom UI relative to the total Canvas height
             float f_top = 400f / canvasHeight;     // top bar, score/best boxes, progress bar
             float f_bottom = 240f / canvasHeight;  // bottom action buttons
-            float f_available = 1f - f_top - f_bottom;
+            float f_available = Mathf.Max(0.2f, 1f - f_top - f_bottom);
 
             // Calculate orthographic size to fit both width and vertical available region
             float orthoForWidth = S_board / (2f * aspect);

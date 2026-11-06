@@ -75,11 +75,17 @@ namespace SlideAndMatch
         private Vector2 originalNewGameOffsetMax;
         private bool hasSavedOriginalLayout = false;
 
+        private CanvasScaler canvasScaler;
+        private int lastScreenWidth = 0;
+        private int lastScreenHeight = 0;
+
         // ───────────────────────────────────────────────────────
         // Lifecycle
         // ───────────────────────────────────────────────────────
         void Start()
         {
+            UpdateCanvasScaler();
+
             // Auto-create UI if nothing is wired
             if (scoreText == null)
             {
@@ -162,6 +168,13 @@ namespace SlideAndMatch
 
         void Update()
         {
+            if (Screen.width != lastScreenWidth || Screen.height != lastScreenHeight)
+            {
+                lastScreenWidth = Screen.width;
+                lastScreenHeight = Screen.height;
+                UpdateCanvasScaler();
+            }
+
             if (Time.time >= nextNetworkCheckTime)
             {
                 nextNetworkCheckTime = Time.time + 1f;
@@ -171,6 +184,25 @@ namespace SlideAndMatch
                     lastOnlineState = isOnline;
                     UpdateUndoButtonState();
                 }
+            }
+        }
+
+        private void UpdateCanvasScaler()
+        {
+            if (canvasScaler == null)
+            {
+                Canvas canvas = GetComponentInParent<Canvas>();
+                if (canvas == null) canvas = FindAnyObjectByType<Canvas>();
+                if (canvas != null) canvasScaler = canvas.GetComponent<CanvasScaler>();
+            }
+
+            if (canvasScaler != null)
+            {
+                float targetAspect = 1080f / 1920f;
+                float currentAspect = (float)Screen.width / Mathf.Max(1, Screen.height);
+                canvasScaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+                canvasScaler.referenceResolution = new Vector2(1080, 1920);
+                canvasScaler.matchWidthOrHeight = currentAspect > targetAspect ? 1f : 0f;
             }
         }
 
@@ -346,9 +378,10 @@ namespace SlideAndMatch
             canvas.sortingOrder = 10;
 
             CanvasScaler scaler = canvasObj.AddComponent<CanvasScaler>();
+            canvasScaler = scaler;
             scaler.uiScaleMode        = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1080, 1920);
-            scaler.matchWidthOrHeight  = 0.5f;
+            UpdateCanvasScaler();
 
             canvasObj.AddComponent<GraphicRaycaster>();
 
@@ -362,14 +395,24 @@ namespace SlideAndMatch
             safeAreaRt.offsetMax = Vector2.zero;
             safeAreaObj.AddComponent<SafeAreaHandler>();
 
+            // ── ContentPanel (Centers gameplay UI horizontally on widescreen) ──
+            GameObject contentObj = new GameObject("ContentPanel");
+            contentObj.transform.SetParent(safeAreaObj.transform, false);
+            RectTransform contentRt = contentObj.AddComponent<RectTransform>();
+            contentRt.anchorMin = new Vector2(0.5f, 0f);
+            contentRt.anchorMax = new Vector2(0.5f, 1f);
+            contentRt.pivot = new Vector2(0.5f, 0.5f);
+            contentRt.sizeDelta = new Vector2(1080f, 0f);
+            contentRt.anchoredPosition = Vector2.zero;
+
             // ── Top App Bar ────────────────────────────────────
             // Title
-            CreateLabel(safeAreaObj.transform, "TitleText", "2048", 80,
+            CreateLabel(contentObj.transform, "TitleText", "2048", 80,
                 new Vector2(0.5f, 1f), new Vector2(0, -100), new Vector2(400, 120),
                 HexColor("#ddb7ff"), FontStyles.Bold);
 
             // Settings Button
-            Button settingsBtn = CreateBtn(safeAreaObj.transform, "SettingsBtn", "",
+            Button settingsBtn = CreateBtn(contentObj.transform, "SettingsBtn", "",
                 new Vector2(1f, 1f), new Vector2(-100, -100), new Vector2(80, 80),
                 Color.white);
             Sprite settingsSprite = LoadSpriteFromResources("settings");
@@ -383,7 +426,7 @@ namespace SlideAndMatch
 
             // ── Score boxes ────────────────────────────────────
             // Score Box
-            GameObject scoreBox = CreateBox(safeAreaObj.transform, "ScoreBox",
+            GameObject scoreBox = CreateBox(contentObj.transform, "ScoreBox",
                 new Vector2(0f, 1f), Vector2.zero, Vector2.zero,
                 HexColor("#171f33"));
             scoreBoxRect = scoreBox.GetComponent<RectTransform>();
@@ -401,7 +444,7 @@ namespace SlideAndMatch
                 HexColor("#ddb7ff"), FontStyles.Bold);
 
             // Best Box
-            GameObject bestBox = CreateBox(safeAreaObj.transform, "BestBox",
+            GameObject bestBox = CreateBox(contentObj.transform, "BestBox",
                 new Vector2(0f, 1f), Vector2.zero, Vector2.zero,
                 HexColor("#171f33"));
             bestBoxRect = bestBox.GetComponent<RectTransform>();
@@ -419,7 +462,7 @@ namespace SlideAndMatch
                 Color.white, FontStyles.Bold);
 
             // ── Progress Bar ───────────────────────────────────
-            GameObject progressBg = CreateBox(safeAreaObj.transform, "ProgressBarBg",
+            GameObject progressBg = CreateBox(contentObj.transform, "ProgressBarBg",
                 new Vector2(0f, 1f), Vector2.zero, Vector2.zero,
                 HexColor("#171f33"));
             RectTransform progressBgRt = progressBg.GetComponent<RectTransform>();
@@ -438,7 +481,7 @@ namespace SlideAndMatch
             autoProgressBarFill.offsetMax = Vector2.zero;
 
             // ── Action Buttons ─────────────────────────────────
-            newGameButton = CreateBtn(safeAreaObj.transform, "NewGameBtn", "NEW GAME",
+            newGameButton = CreateBtn(contentObj.transform, "NewGameBtn", "NEW GAME",
                 new Vector2(0f, 0f), Vector2.zero, Vector2.zero,
                 HexColor("#b76dff"));
             RectTransform newGameRt = newGameButton.GetComponent<RectTransform>();
@@ -447,7 +490,7 @@ namespace SlideAndMatch
             newGameRt.anchoredPosition = new Vector2(0f, 150f);
             newGameRt.sizeDelta = new Vector2(0f, 110f);
 
-            undoButton = CreateBtn(safeAreaObj.transform, "UndoBtn", "UNDO",
+            undoButton = CreateBtn(contentObj.transform, "UndoBtn", "UNDO",
                 new Vector2(0f, 0f), Vector2.zero, Vector2.zero,
                 HexColor("#3e495d"));
             RectTransform undoRt = undoButton.GetComponent<RectTransform>();
@@ -489,12 +532,12 @@ namespace SlideAndMatch
             settingsPanel.GetComponent<Image>().color = new Color(0.04f, 0.04f, 0.06f, 0.94f);
 
             GameObject container = CreateBox(settingsPanel.transform, "SettingsContainer",
-                new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero, HexColor("#171f33"));
+                new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(900f, 1300f), HexColor("#171f33"));
             RectTransform containerRt = container.GetComponent<RectTransform>();
-            containerRt.anchorMin = new Vector2(0.05f, 0.15f);
-            containerRt.anchorMax = new Vector2(0.95f, 0.85f);
-            containerRt.offsetMin = Vector2.zero;
-            containerRt.offsetMax = Vector2.zero;
+            containerRt.anchorMin = new Vector2(0.5f, 0.5f);
+            containerRt.anchorMax = new Vector2(0.5f, 0.5f);
+            containerRt.sizeDelta = new Vector2(900f, 1300f);
+            containerRt.anchoredPosition = Vector2.zero;
 
             CreateLabel(container.transform, "SettingsTitle", "SETTINGS", 56,
                 new Vector2(0.05f, 1f), Vector2.zero, Vector2.zero,
@@ -567,12 +610,12 @@ namespace SlideAndMatch
             howToPlayModal.GetComponent<Image>().color = new Color(0.02f, 0.03f, 0.05f, 0.98f);
             
             GameObject htContainer = CreateBox(howToPlayModal.transform, "HowToPlayContainer",
-                new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero, HexColor("#222a3d"));
+                new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(900f, 1300f), HexColor("#222a3d"));
             RectTransform htContainerRt = htContainer.GetComponent<RectTransform>();
-            htContainerRt.anchorMin = new Vector2(0.05f, 0.15f);
-            htContainerRt.anchorMax = new Vector2(0.95f, 0.85f);
-            htContainerRt.offsetMin = Vector2.zero;
-            htContainerRt.offsetMax = Vector2.zero;
+            htContainerRt.anchorMin = new Vector2(0.5f, 0.5f);
+            htContainerRt.anchorMax = new Vector2(0.5f, 0.5f);
+            htContainerRt.sizeDelta = new Vector2(900f, 1300f);
+            htContainerRt.anchoredPosition = Vector2.zero;
 
             CreateLabel(htContainer.transform, "HTTitle", "HOW TO PLAY", 48,
                 new Vector2(0f, 1f), Vector2.zero, Vector2.zero,
